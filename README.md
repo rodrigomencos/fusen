@@ -93,6 +93,16 @@ fusen done <id> "what was done"
 fusen tasks                  # open tasks and who holds them
 ```
 
+```
+ID                           STATE                                   WHO     TITLE
+cap-on-collected-perks       blocked: needs_input                    claude  Cap on collected perks
+rate-limit-the-checkout-api  claimed until 13:25                     claude  Rate limit the checkout API
+review-the-rate-limiter      waiting on rate-limit-the-checkout-api  codex   Review the rate limiter
+```
+
+Two agents claiming the same task at the same moment get one winner. The other
+is told who holds it and until when.
+
 `fusen run <id> -- <command>` claims a task, runs the command, keeps the claim
 alive while it runs, and settles the task by the command's exit code.
 
@@ -103,8 +113,17 @@ fusen block <id> "Cap at 50 or 100? I recommend 50."   # asks the person
 fusen wait <id>                                        # returns when they answer
 ```
 
-Writing `@name` in a note or reply puts it in that person's or agent's
-`fusen inbox` until they reply.
+The question lands on the note, signed and dated, and the person sees it marked
+"needs you" with a box to answer in:
+
+```
+$ fusen inbox
+cap-on-collected-perks  Cap on collected perks
+    @alex Cap at 50 or 100 per crew? I recommend 50: it matches the badge limit.
+```
+
+Writing `@name` in any note or reply does the same for that person or agent,
+until they reply.
 
 ### What changed
 
