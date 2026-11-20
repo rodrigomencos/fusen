@@ -1,0 +1,672 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>fusen</title>
+<style>
+:root {
+  --bg: #f3efe6; --dot: #d6cfbf; --ink: #26231d; --muted: #7b7467; --card: #fffdf8; --line: #e2dccd;
+  --bar: rgba(255, 253, 248, .86); --accent: #b4491c;
+  --shadow: 0 1px 2px rgba(50, 38, 15, .08), 0 8px 20px rgba(50, 38, 15, .08);
+  --yellow: #e9b825; --pink: #e2618c; --blue: #4c8fd6; --green: #4daa72; --purple: #8c70d1; --gray: #9a9488;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #15161a; --dot: #2b2d33; --ink: #e9e6df; --muted: #918d84; --card: #1f2126; --line: #32353c;
+    --bar: rgba(31, 33, 38, .86); --accent: #f08a54;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 10px 24px rgba(0, 0, 0, .35);
+  }
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { font: 14px/1.45 var(--sans); color: var(--ink); background: var(--bg); overflow: hidden; }
+button, input, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; border: 1px solid var(--line); background: var(--card); border-radius: 7px; padding: 4px 10px; }
+button:hover { border-color: var(--muted); }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+#bar {
+  position: fixed; z-index: 10; top: 12px; left: 12px; right: 12px; display: flex; align-items: center; gap: 10px;
+  padding: 7px 8px 7px 14px; background: var(--bar); backdrop-filter: blur(10px); border: 1px solid var(--line);
+  border-radius: 12px; box-shadow: var(--shadow);
+}
+#name { font-weight: 650; letter-spacing: -.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#count, #status { color: var(--muted); font-size: 12.5px; white-space: nowrap; }
+#status.off { color: var(--accent); }
+#q { flex: 1; min-width: 60px; max-width: 280px; margin-left: auto; padding: 4px 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--card); }
+
+#viewport {
+  position: fixed; inset: 0; overflow: hidden; cursor: grab; touch-action: none;
+  background-image: radial-gradient(var(--dot) 1.2px, transparent 1.2px);
+}
+body.moving, body.moving * { user-select: none; -webkit-user-select: none; }
+body.moving #viewport { cursor: grabbing; }
+#world { position: absolute; left: 0; top: 0; width: 0; height: 0; transform-origin: 0 0; }
+#empty { position: fixed; inset: 0; display: grid; place-items: center; pointer-events: none; text-align: center; color: var(--muted); padding: 24px; }
+#empty[hidden] { display: none; }
+#empty code { font: 12.5px var(--mono); background: var(--card); border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; }
+
+.note {
+  --c: var(--line); position: absolute; display: flex; flex-direction: column; cursor: default;
+  min-width: 180px; min-height: 110px; border-radius: 10px; overflow: hidden;
+  background: color-mix(in srgb, var(--c) 8%, var(--card));
+  border: 1px solid color-mix(in srgb, var(--c) 35%, var(--line)); border-top: 4px solid var(--c);
+  box-shadow: var(--shadow); transition: opacity .15s, box-shadow .3s;
+}
+.note[data-color=yellow] { --c: var(--yellow); } .note[data-color=pink] { --c: var(--pink); }
+.note[data-color=blue] { --c: var(--blue); } .note[data-color=green] { --c: var(--green); }
+.note[data-color=purple] { --c: var(--purple); } .note[data-color=gray] { --c: var(--gray); }
+.note.dim { opacity: .14; }
+.note.flash { box-shadow: 0 0 0 3px var(--accent), var(--shadow); }
+.head { display: flex; align-items: flex-start; gap: 8px; padding: 9px 8px 4px 13px; cursor: grab; user-select: none; -webkit-user-select: none; }
+.head h2 { flex: 1; margin: 0; font-size: 14.5px; font-weight: 650; letter-spacing: -.01em; overflow-wrap: anywhere; }
+.head .edit { font-size: 12px; padding: 1px 8px; opacity: 0; }
+.note:hover .edit, .edit:focus-visible { opacity: 1; }
+.body { flex: 1; min-height: 0; overflow: auto; padding: 2px 13px 8px; overflow-wrap: anywhere; }
+.foot { display: flex; align-items: center; gap: 8px; padding: 6px 13px 8px; font-size: 12px; color: var(--muted); cursor: grab; user-select: none; -webkit-user-select: none; }
+.foot .meta { white-space: nowrap; }
+.chips { display: flex; gap: 4px; margin-left: auto; overflow: hidden; }
+.chip { border: 1px solid color-mix(in srgb, var(--c) 40%, var(--line)); border-radius: 99px; padding: 0 7px; white-space: nowrap; }
+.grip { position: absolute; right: 0; bottom: 0; width: 16px; height: 16px; cursor: nwse-resize; }
+.grip::after { content: ""; position: absolute; right: 4px; bottom: 4px; width: 6px; height: 6px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); opacity: .5; }
+
+.md > :first-child { margin-top: 0; } .md > :last-child { margin-bottom: 0; }
+.md p, .md ul, .md ol, .md pre, .md blockquote { margin: 0 0 8px; }
+.md h3, .md h4, .md h5, .md h6 { margin: 10px 0 4px; font-size: 13.5px; }
+.md h3 { font-size: 14px; }
+.md ul, .md ol { padding-left: 20px; }
+.md li.task { list-style: none; margin-left: -20px; display: flex; gap: 7px; align-items: baseline; }
+.md li.task input { margin: 0; translate: 0 2px; accent-color: var(--accent); cursor: pointer; }
+.md li.done span { color: var(--muted); text-decoration: line-through; }
+.md code { font: 12.5px var(--mono); background: color-mix(in srgb, var(--ink) 8%, transparent); border-radius: 4px; padding: 1px 4px; }
+.md pre { background: color-mix(in srgb, var(--ink) 7%, transparent); border-radius: 7px; padding: 8px 10px; overflow: auto; }
+.md pre code { background: none; padding: 0; }
+.md blockquote { border-left: 3px solid var(--c); padding-left: 9px; color: var(--muted); }
+.md hr { border: 0; border-top: 1px solid var(--line); margin: 10px 0; }
+.md a { color: var(--accent); }
+.md .none { color: var(--muted); font-style: italic; }
+.task-row { display: flex; flex-wrap: wrap; gap: 4px; padding: 0 13px 5px; font-size: 11.5px; }
+.task-row .chip { color: var(--muted); }
+.task-row .chip.you { color: #fff; background: var(--accent); border-color: var(--accent); font-weight: 600; }
+.task-row .chip.claimed, .task-row .chip.blocked { color: var(--ink); border-color: var(--muted); }
+.note.needs-me { box-shadow: 0 0 0 2px var(--accent), var(--shadow); }
+.reply { display: flex; gap: 6px; padding: 2px 13px 6px; }
+.reply input { flex: 1; min-width: 0; padding: 3px 8px; border: 1px solid var(--line); border-radius: 7px; background: var(--card); font-size: 13px; }
+.reply button { font-size: 12.5px; padding: 2px 9px; }
+#you { color: #fff; background: var(--accent); border-color: var(--accent); font-weight: 600; }
+.e-task { border: 1px solid var(--line); border-radius: 7px; background: var(--card); padding: 3px 4px; font-size: 12.5px; }
+.wedo { margin-top: 10px; }
+.wedo:first-child { margin-top: 2px; }
+.wedo-head { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; font-weight: 650; color: var(--muted); }
+.wedo-bar { height: 3px; margin: 4px 0 7px; border-radius: 2px; background: color-mix(in srgb, var(--ink) 10%, transparent); overflow: hidden; }
+.wedo-bar i { display: block; height: 100%; background: var(--accent); }
+.md li.section { list-style: none; margin: 9px 0 3px -20px; font-weight: 650; }
+.md li.section:first-child { margin-top: 0; }
+
+.note.editing { min-width: 420px; min-height: 336px; padding: 10px; gap: 7px; z-index: 100000 !important; }
+.note.editing input, .note.editing textarea { width: 100%; border: 1px solid var(--line); border-radius: 7px; background: var(--card); padding: 5px 8px; }
+.e-title { font-weight: 650; }
+.e-body { flex: 1; min-height: 120px; resize: none; font: 12.5px/1.5 var(--mono); }
+.e-row { display: flex; align-items: center; gap: 6px; }
+.e-row .grow { flex: 1; }
+.sw { width: 18px; height: 18px; padding: 0; border-radius: 50%; background: var(--s); border: 2px solid transparent; }
+.sw.on { border-color: var(--ink); }
+.changed { display: none; font-size: 12px; color: var(--accent); }
+.note.stale .changed { display: inline; }
+</style>
+</head>
+<body>
+<header id="bar">
+  <span id="name"></span>
+  <span id="count"></span>
+  <span id="status"></span>
+  <button id="you" hidden title="Show the next note waiting on you"></button>
+  <input id="q" type="search" placeholder="Filter notes" aria-label="Filter notes">
+  <button id="fit" title="Show every note">Fit</button>
+  <button id="new" class="primary">New note</button>
+</header>
+<main id="viewport"><div id="world"></div></main>
+<div id="empty" hidden><p>No notes yet. Double-click anywhere to add one.<br>Agents add them with <code>fusen add</code> or by writing files in <code>.fusen/notes/</code>.</p></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const viewport = $('#viewport'), world = $('#world');
+const COLORS = ['yellow', 'pink', 'blue', 'green', 'purple', 'gray'];
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+
+let notes = new Map();   // id -> note, as last read from disk
+let layout = {};         // id -> {x, y, w, h}
+const els = new Map();   // id -> element
+let editor = null;       // {id, el, rev, color} while a note is open; id is null for a note not saved yet
+let moving = null;       // id of the note being dragged or resized
+let loaded = false, zTop = 1;
+let view = {x: 0, y: 0, z: 1};
+
+// ---------- Markdown ----------
+
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+
+function inline(src) {
+  const codes = [];
+  let s = src.replace(/`([^`]+)`/g, (_, c) => '\u0000' + (codes.push(c) - 1) + '\u0000');
+  s = esc(s)
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
+    .replace(/(^|\s)(https?:\/\/[^\s<]+)/g, '$1<a href="$2" target="_blank" rel="noopener">$2</a>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/(^|[^\w*])\*([^*\s][^*]*)\*/g, '$1<em>$2</em>')
+    .replace(/~~([^~]+)~~/g, '<del>$1</del>');
+  return s.replace(/\u0000(\d+)\u0000/g, (_, i) => '<code>' + esc(codes[i]) + '</code>');
+}
+
+const FENCE = /^\s*```/;
+const ITEM = /^(\s*)([-*+]|\d+[.)])\s+(.*)$/;
+const TASK = /^\[([ xX])\]\s+(.*)$/;
+
+function md(src) {
+  const out = [], lines = src.split('\n');
+  let list = null, para = [], task = 0, m;
+  const endPara = () => { if (para.length) out.push('<p>' + para.map(inline).join('<br>') + '</p>'); para = []; };
+  const endList = () => { if (list) out.push('</' + list + '>'); list = null; };
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (FENCE.test(line)) {
+      endPara(); endList();
+      const code = [];
+      for (i++; i < lines.length && !FENCE.test(lines[i]); i++) code.push(lines[i]);
+      out.push('<pre><code>' + esc(code.join('\n')) + '</code></pre>');
+    } else if ((m = line.match(/^(#{1,4})\s+(.*)$/))) {
+      endPara(); endList();
+      const h = m[1].length + 2;
+      out.push(`<h${h}>${inline(m[2])}</h${h}>`);
+    } else if ((m = line.match(ITEM))) {
+      endPara();
+      const tag = /\d/.test(m[2]) ? 'ol' : 'ul';
+      if (list !== tag) { endList(); out.push('<' + tag + '>'); list = tag; }
+      const indent = Math.floor(m[1].replace(/\t/g, '  ').length / 2) * 16;
+      const t = m[3].match(TASK);
+      if (t) {
+        const done = t[1] !== ' ';
+        out.push(`<li class="task${done ? ' done' : ''}" style="padding-left:${indent}px"><input type="checkbox" data-task="${task++}"${done ? ' checked' : ''}><span>${inline(t[2])}</span></li>`);
+      } else {
+        out.push(`<li style="margin-left:${indent}px">${inline(m[3])}</li>`);
+      }
+    } else if (/^\s*(---+|\*\*\*+)\s*$/.test(line)) {
+      endPara(); endList(); out.push('<hr>');
+    } else if ((m = line.match(/^>\s?(.*)$/))) {
+      endPara(); endList(); out.push('<blockquote>' + inline(m[1]) + '</blockquote>');
+    } else if (!line.trim()) {
+      endPara(); endList();
+    } else {
+      endList(); para.push(line);
+    }
+  }
+  endPara(); endList();
+  return out.join('');
+}
+
+// Flips the nth task in the Markdown source, counting the way md() does.
+function toggleTask(body, n) {
+  let k = 0, fenced = false;
+  return body.split('\n').map(line => {
+    if (FENCE.test(line)) { fenced = !fenced; return line; }
+    const m = !fenced && line.match(ITEM);
+    if (!m || !TASK.test(m[3]) || k++ !== n) return line;
+    const at = line.indexOf('[', m[1].length + m[2].length);
+    return line.slice(0, at + 1) + (line[at + 1] === ' ' ? 'x' : ' ') + line.slice(at + 2);
+  }).join('\n');
+}
+
+// The wedo checklist a note shows: its name, how far along it is, and its items.
+function wedoList(n) {
+  if (!n.wedo) return '';
+  const head = (right, rest) => `<div class="wedo"><div class="wedo-head"><span>${esc(n.wedo)}</span><span>${right}</span></div>${rest}</div>`;
+  if (n.itemsError) return head('', `<p class="none">${esc(n.itemsError)}</p>`);
+  const items = n.items || [], tasks = items.filter(i => !i.text.startsWith('# ')), done = tasks.filter(i => i.done).length;
+  const rows = items.map(i => i.text.startsWith('# ')
+    ? `<li class="section">${inline(i.text.slice(2))}</li>`
+    : `<li class="task${i.done ? ' done' : ''}"><input type="checkbox" data-item="${i.id}"${i.done ? ' checked' : ''}><span>${inline(i.text)}</span></li>`);
+  const bar = `<div class="wedo-bar"><i style="width:${tasks.length ? done / tasks.length * 100 : 0}%"></i></div>`;
+  return head(`${done}/${tasks.length}`, bar + (rows.length ? `<ul>${rows.join('')}</ul>` : '<p class="none">No items yet</p>'));
+}
+
+// ---------- Server ----------
+
+async function api(method, path, body) {
+  const res = await fetch(path, {
+    method,
+    headers: body ? {'Content-Type': 'application/json'} : {},
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (res.status === 409) return {conflict: true};
+  if (!res.ok) throw new Error((await res.text()).trim() || res.statusText);
+  return res.status === 204 ? null : res.json();
+}
+
+const notePath = id => '/api/notes/' + encodeURIComponent(id);
+
+function report(err) {
+  console.error(err);
+  setStatus('Could not save: ' + err.message, true);
+}
+
+function setStatus(text, off) {
+  $('#status').textContent = text;
+  $('#status').classList.toggle('off', !!off);
+}
+
+let loading = null, loadAgain = false;
+function load() {
+  if (loading) { loadAgain = true; return loading; }
+  loading = (async () => {
+    do { loadAgain = false; apply(await api('GET', '/api/board')); } while (loadAgain);
+  })().finally(() => { loading = null; });
+  return loading;
+}
+
+function apply(state) {
+  document.title = state.name + ' · fusen';
+  $('#name').textContent = state.name;
+  $('#name').title = state.root;
+  const seen = new Set();
+  for (const n of state.notes) {
+    seen.add(n.id);
+    const old = notes.get(n.id);
+    notes.set(n.id, n);
+    let el = els.get(n.id);
+    if (!el) {
+      el = document.createElement('article');
+      el.className = 'note';
+      el.dataset.id = n.id;
+      world.append(el);
+      els.set(n.id, el);
+    }
+    if (moving !== n.id) { layout[n.id] = state.layout[n.id]; place(n.id); }
+    const shown = x => JSON.stringify([x.rev, x.items, x.itemsError, x.state, x.needsMe]);
+    const changed = !old || shown(old) !== shown(n);
+    if (editor && editor.id === n.id) {
+      if (n.rev !== editor.rev) el.classList.add('stale');
+    } else if (changed) {
+      paint(el, n);
+      if (loaded) flash(el);
+    }
+  }
+  for (const [id, el] of els) {
+    if (seen.has(id)) continue;
+    el.remove(); els.delete(id); notes.delete(id); delete layout[id];
+    if (editor && editor.id === id) editor = null;
+  }
+  $('#count').textContent = notes.size === 1 ? '1 note' : notes.size + ' notes';
+  $('#empty').hidden = notes.size > 0;
+  const waiting = [...notes.values()].filter(n => n.needsMe).length;
+  $('#you').hidden = !waiting;
+  $('#you').textContent = waiting === 1 ? '1 needs you' : waiting + ' need you';
+  applyFilter();
+  if (!loaded) { loaded = true; if (!restoreView()) fit(); }
+}
+
+// ---------- Notes ----------
+
+function place(id) {
+  const el = els.get(id), r = layout[id];
+  if (!el || !r) return;
+  el.style.left = r.x + 'px'; el.style.top = r.y + 'px';
+  el.style.width = r.w + 'px'; el.style.height = r.h + 'px';
+}
+
+function ago(iso) {
+  const s = (Date.now() - new Date(iso)) / 1000;
+  if (s < 45) return 'just now';
+  if (s < 3600) return Math.round(s / 60) + 'm ago';
+  if (s < 86400) return Math.round(s / 3600) + 'h ago';
+  if (s < 86400 * 14) return Math.round(s / 86400) + 'd ago';
+  return new Date(iso).toLocaleDateString(undefined, {month: 'short', day: 'numeric', year: 'numeric'});
+}
+
+// What a task is doing right now, and whether the note is waiting on the person looking.
+function taskRow(n) {
+  const chips = [];
+  if (n.needsMe) chips.push('<span class="chip you">needs you</span>');
+  const until = n.until ? new Date(n.until).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}) : '';
+  const text = {
+    claimed: `claimed · ${n.holder} · until ${until}`,
+    blocked: `blocked · ${(n.blocked || 'needs input').replace(/_/g, ' ')}${n.holder ? ' · ' + n.holder : ''}`,
+    waiting: `waiting on ${(n.needs || []).join(', ')}`,
+  }[n.state] || n.state;
+  if (text) chips.push(`<span class="chip ${esc(n.state)}">${esc(text)}</span>`);
+  if (n.for && n.state !== 'claimed') chips.push(`<span class="chip">for ${esc(n.for)}</span>`);
+  return chips.length ? `<div class="task-row">${chips.join('')}</div>` : '';
+}
+
+function paint(el, n) {
+  const draft = el.querySelector('.reply input'), typing = draft && document.activeElement === draft;
+  el.classList.remove('editing', 'stale');
+  el.classList.toggle('needs-me', !!n.needsMe);
+  el.dataset.color = n.color || '';
+  const asks = n.needsMe || n.state === 'blocked';
+  el.innerHTML = `
+    <header class="head"><h2>${esc(n.title || n.id)}</h2><button class="edit">Edit</button></header>
+    ${taskRow(n)}
+    <div class="body md">${md(n.body) + wedoList(n) || '<p class="none">Empty note</p>'}</div>
+    ${asks ? `<form class="reply"><input aria-label="Reply" placeholder="${n.state === 'blocked' ? 'Answer to unblock' : 'Reply'}"><button>Send</button></form>` : ''}
+    <footer class="foot">
+      <span class="meta">${n.by ? esc(n.by) + ' · ' : ''}<time datetime="${esc(n.updated)}">${ago(n.updated)}</time></span>
+      <span class="chips">${n.labels.map(l => `<span class="chip">${esc(l)}</span>`).join('')}</span>
+    </footer>
+    <div class="grip"></div>`;
+  // A reply being typed survives the card repainting under it.
+  const input = el.querySelector('.reply input');
+  if (input && draft) {
+    input.value = draft.value;
+    if (typing) input.focus();
+  }
+  if (asks) el.querySelector('.body').scrollTop = 1e6;
+}
+
+async function sendReply(form) {
+  const id = form.closest('.note').dataset.id, input = form.querySelector('input'), text = input.value.trim();
+  if (!text) return;
+  try {
+    await api('POST', notePath(id) + '/reply', {text});
+    input.value = '';
+    await load();
+  } catch (err) { report(err); }
+}
+
+// Brings the next note that is waiting on the person into the middle of the view.
+let lastShown = '';
+function showNextWaiting() {
+  const ids = [...notes.values()].filter(n => n.needsMe).map(n => n.id).sort();
+  if (!ids.length) return;
+  lastShown = ids[(ids.indexOf(lastShown) + 1) % ids.length];
+  const r = layout[lastShown];
+  view.x = viewport.clientWidth / 2 - (r.x + r.w / 2) * view.z;
+  view.y = viewport.clientHeight / 2 - (r.y + r.h / 2) * view.z;
+  applyView();
+  flash(els.get(lastShown));
+}
+
+function flash(el) {
+  el.classList.add('flash');
+  setTimeout(() => el.classList.remove('flash'), 1800);
+}
+
+function showEditor(el, n) {
+  el.classList.add('editing');
+  el.style.zIndex = ++zTop;
+  el.innerHTML = `
+    <input class="e-title" value="${esc(n.title)}" placeholder="Title" aria-label="Title">
+    <textarea class="e-body" placeholder="Markdown" aria-label="Body" spellcheck="false">${esc(n.body)}</textarea>
+    <input class="e-labels" value="${esc(n.labels.join(', '))}" placeholder="Labels, separated by commas" aria-label="Labels">
+    <input class="e-wedo" value="${esc(n.wedo || '')}" placeholder="wedo list to show on the card (optional)" aria-label="wedo list">
+    <div class="e-row">
+      ${COLORS.map(c => `<button class="sw${c === editor.color ? ' on' : ''}" data-color="${c}" style="--s:var(--${c})" title="${c}" aria-label="${c}"></button>`).join('')}
+      <select class="e-task" aria-label="Task state">${[['', 'Not a task'], ['ready', 'Task: ready'], ['done', 'Task: done'], ...(['', 'ready', 'done'].includes(n.task || '') ? [] : [[n.task, 'Task: ' + n.task]])]
+        .map(([v, t]) => `<option value="${esc(v)}"${v === (n.task || '') ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select>
+      <span class="changed">Changed on disk</span><span class="grow"></span>
+      ${editor.id === null ? '' : '<button class="del">Delete</button>'}<button class="cancel">Cancel</button><button class="save primary">Save</button>
+    </div>`;
+}
+
+async function openEditor(id) {
+  if (editor && editor.id === id) return;
+  if (editor && !(await saveEditor())) return;
+  const n = notes.get(id), el = els.get(id);
+  if (!n || !el) return;
+  editor = {id, el, rev: n.rev, color: n.color || ''};
+  showEditor(el, n);
+  el.querySelector('.e-body').focus();
+}
+
+// A new note has no file until it is saved, so its id comes from the title it ends up with.
+async function draftNote(x, y) {
+  if (editor && !(await saveEditor())) return;
+  const el = document.createElement('article');
+  el.className = 'note';
+  Object.assign(el.style, {left: x + 'px', top: y + 'px', width: '340px', height: '300px'});
+  world.append(el);
+  editor = {id: null, el, color: '', x: Math.round(x), y: Math.round(y)};
+  showEditor(el, {title: '', body: '', labels: [], wedo: ''});
+  el.querySelector('.e-title').focus();
+}
+
+function closeEditor() {
+  const {id, el} = editor;
+  editor = null;
+  if (id === null) el.remove(); else paint(el, notes.get(id));
+  applyFilter();
+}
+
+// Returns false when the note stays open, so the caller does not move on.
+async function saveEditor(overwrite) {
+  const {id, el, rev, color, x, y} = editor;
+  const body = {
+    title: el.querySelector('.e-title').value.trim(),
+    body: el.querySelector('.e-body').value,
+    labels: el.querySelector('.e-labels').value.split(',').map(s => s.trim()).filter(Boolean),
+    wedo: el.querySelector('.e-wedo').value.trim(),
+    task: el.querySelector('.e-task').value,
+    color,
+  };
+  try {
+    if (id === null) {
+      await api('POST', '/api/notes', {...body, x, y});
+      closeEditor();
+      await load();
+    } else {
+      if (!overwrite) body.rev = rev;
+      const saved = await api('PUT', notePath(id), body);
+      if (saved.conflict) {
+        return confirm('This note changed on disk while you were editing it. Replace it with your version?') ? saveEditor(true) : false;
+      }
+      notes.set(id, saved);
+      closeEditor();
+    }
+    setStatus('');
+    return true;
+  } catch (err) { report(err); return false; }
+}
+
+async function deleteNote(id) {
+  const n = notes.get(id);
+  if (!confirm(`Delete "${n.title || id}"? This removes the file.`)) return;
+  try {
+    await api('DELETE', notePath(id));
+    editor = null;
+    await load();
+  } catch (err) { report(err); }
+}
+
+async function onTask(box) {
+  const id = box.closest('.note').dataset.id, n = notes.get(id);
+  try {
+    const saved = await api('PUT', notePath(id), {body: toggleTask(n.body, +box.dataset.task), rev: n.rev});
+    if (saved.conflict) return load();
+    notes.set(id, saved);
+    paint(els.get(id), saved);
+  } catch (err) { report(err); load(); }
+}
+
+async function onItem(box) {
+  const id = box.closest('.note').dataset.id;
+  try { await api('POST', notePath(id) + '/wedo', {item: +box.dataset.item, done: box.checked}); } catch (err) { report(err); }
+  load();
+}
+
+function applyFilter() {
+  const q = $('#q').value.trim().toLowerCase();
+  for (const [id, el] of els) {
+    const n = notes.get(id);
+    const text = [n.id, n.title, n.by, n.body, n.wedo, ...n.labels, ...(n.items || []).map(i => i.text)].join('\n').toLowerCase();
+    el.classList.toggle('dim', !!q && !text.includes(q));
+  }
+}
+
+// ---------- Canvas ----------
+
+function applyView() {
+  world.style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.z})`;
+  viewport.style.backgroundPosition = `${view.x}px ${view.y}px`;
+  viewport.style.backgroundSize = `${24 * view.z}px ${24 * view.z}px`;
+  try { localStorage.setItem('view', JSON.stringify(view)); } catch {}
+}
+
+function restoreView() {
+  try {
+    const v = JSON.parse(localStorage.getItem('view'));
+    if (!v || ![v.x, v.y, v.z].every(Number.isFinite)) return false;
+    view = {x: v.x, y: v.y, z: clamp(v.z, .2, 2)};
+    applyView();
+    return true;
+  } catch { return false; }
+}
+
+function fit() {
+  const rs = Object.values(layout), vw = viewport.clientWidth, vh = viewport.clientHeight, top = 64;
+  if (!rs.length) { view = {x: 0, y: 0, z: 1}; return applyView(); }
+  const x0 = Math.min(...rs.map(r => r.x)), y0 = Math.min(...rs.map(r => r.y));
+  const x1 = Math.max(...rs.map(r => r.x + r.w)), y1 = Math.max(...rs.map(r => r.y + r.h));
+  const z = clamp(Math.min((vw - 80) / (x1 - x0), (vh - top - 60) / (y1 - y0)), .2, 1);
+  view = {z, x: (vw - (x1 - x0) * z) / 2 - x0 * z, y: top + (vh - top - (y1 - y0) * z) / 2 - y0 * z};
+  applyView();
+}
+
+function zoomAt(cx, cy, factor) {
+  const z = clamp(view.z * factor, .2, 2), k = z / view.z;
+  view = {z, x: cx - (cx - view.x) * k, y: cy - (cy - view.y) * k};
+  applyView();
+}
+
+const toWorld = (cx, cy) => ({x: (cx - view.x) / view.z, y: (cy - view.y) / view.z});
+
+// Follows the pointer until release, reporting how far it has travelled.
+function track(e, onMove, onEnd) {
+  const sx = e.clientX, sy = e.clientY;
+  let moved = false;
+  const move = ev => {
+    const dx = ev.clientX - sx, dy = ev.clientY - sy;
+    if (!moved && Math.hypot(dx, dy) < 3) return;
+    moved = true;
+    document.body.classList.add('moving');
+    onMove(dx, dy);
+  };
+  const up = () => {
+    removeEventListener('pointermove', move);
+    removeEventListener('pointerup', up);
+    removeEventListener('pointercancel', up);
+    document.body.classList.remove('moving');
+    onEnd?.(moved);
+  };
+  addEventListener('pointermove', move);
+  addEventListener('pointerup', up);
+  addEventListener('pointercancel', up);
+}
+
+viewport.addEventListener('pointerdown', e => {
+  if (e.button !== 0) return;
+  if (e.target === viewport) {
+    const start = {...view};
+    track(e, (dx, dy) => { view.x = start.x + dx; view.y = start.y + dy; applyView(); });
+    return;
+  }
+  const el = e.target.closest('.note');
+  if (!el || el.classList.contains('editing')) return;
+  el.style.zIndex = ++zTop;
+  const resize = e.target.closest('.grip');
+  if (!resize && (!e.target.closest('.head, .foot') || e.target.closest('button'))) return;
+  const id = el.dataset.id, start = {...layout[id]};
+  moving = id;
+  track(e, (dx, dy) => {
+    dx /= view.z; dy /= view.z;
+    layout[id] = resize
+      ? {...start, w: Math.max(180, start.w + dx), h: Math.max(110, start.h + dy)}
+      : {...start, x: start.x + dx, y: start.y + dy};
+    place(id);
+  }, moved => {
+    moving = null;
+    if (!moved) return;
+    const r = layout[id];
+    for (const k in r) r[k] = Math.round(r[k]);
+    place(id);
+    api('PUT', '/api/layout/' + encodeURIComponent(id), r).catch(report);
+  });
+});
+
+viewport.addEventListener('wheel', e => {
+  if (e.ctrlKey || e.metaKey) {
+    e.preventDefault();
+    zoomAt(e.clientX, e.clientY, Math.exp(-e.deltaY * .01));
+    return;
+  }
+  // A note that can scroll keeps the wheel; everything else moves the canvas.
+  const scroller = e.target.closest?.('.body, textarea, pre');
+  if (scroller && (scroller.scrollHeight > scroller.clientHeight + 1 || scroller.scrollWidth > scroller.clientWidth + 1)) return;
+  e.preventDefault();
+  view.x -= e.deltaX; view.y -= e.deltaY;
+  applyView();
+}, {passive: false});
+
+viewport.addEventListener('dblclick', e => {
+  if (e.target === viewport) {
+    const p = toWorld(e.clientX, e.clientY);
+    return draftNote(p.x - 170, p.y - 20);
+  }
+  const el = e.target.closest('.note');
+  if (el && !el.classList.contains('editing') && !e.target.closest('a, input, button, form')) openEditor(el.dataset.id);
+});
+
+world.addEventListener('click', e => {
+  const el = e.target.closest('.note');
+  if (!el) return;
+  if (e.target.closest('.edit')) return openEditor(el.dataset.id);
+  if (!editor || editor.el !== el) return;
+  const sw = e.target.closest('.sw');
+  if (sw) {
+    editor.color = editor.color === sw.dataset.color ? '' : sw.dataset.color;
+    el.dataset.color = editor.color;
+    for (const b of el.querySelectorAll('.sw')) b.classList.toggle('on', b.dataset.color === editor.color);
+  } else if (e.target.closest('.save')) saveEditor();
+  else if (e.target.closest('.cancel')) closeEditor();
+  else if (e.target.closest('.del')) deleteNote(editor.id);
+});
+
+world.addEventListener('submit', e => {
+  e.preventDefault();
+  if (e.target.matches('.reply')) sendReply(e.target);
+});
+
+world.addEventListener('change', e => {
+  if (e.target.matches('input[data-task]')) onTask(e.target);
+  else if (e.target.matches('input[data-item]')) onItem(e.target);
+});
+
+addEventListener('keydown', e => {
+  if (!editor || e.target.closest('.reply')) return;
+  if (e.key === 'Escape') closeEditor();
+  else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) saveEditor();
+});
+
+$('#q').addEventListener('input', applyFilter);
+$('#fit').addEventListener('click', fit);
+$('#you').addEventListener('click', showNextWaiting);
+$('#new').addEventListener('click', () => {
+  const p = toWorld(viewport.clientWidth / 2, viewport.clientHeight / 2);
+  draftNote(p.x - 170, p.y - 150);
+});
+
+// Times move on, and a claim can run out, without any file changing.
+setInterval(() => {
+  for (const t of world.querySelectorAll('time')) t.textContent = ago(t.dateTime);
+  load().catch(() => {});
+}, 30000);
+
+const events = new EventSource('/api/events');
+events.onopen = () => { setStatus(''); load().catch(report); };
+events.onmessage = () => load().catch(report);
+events.onerror = () => setStatus('Disconnected. Run fusen again to reconnect.', true);
+</script>
+</body>
+</html>
