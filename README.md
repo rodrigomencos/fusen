@@ -5,22 +5,22 @@ A board of sticky notes that lives in your project, kept by you and your agents.
 
 ![The fusen canvas: notes, a checklist, tasks held by agents, and one question waiting on the person](docs/canvas.png)
 
-Agents working in a codebase keep rediscovering the same things and stepping on
-each other. fusen gives a project one shared place for what is known and what is
-in flight:
+## Why use it
 
-- **Notes are files.** Each note is a Markdown file in `.fusen/notes/`. Agents
-  read and write them with their normal tools, and they diff in git.
-- **You see a canvas.** `fusen` opens it in the browser and `fusen tui` in the
-  terminal. Drag notes around, edit them, tick checklists. What an agent writes
-  shows up within half a second.
-- **Tasks are claimed, not collided on.** An agent claims a task before working
-  on it. The claim is a lease: if the agent goes away, the task returns to the
-  queue.
-- **Agents can ask you.** An agent parks a task on a question and waits. The
-  note shows "needs you" on your canvas, and your reply hands the task back.
+| Without it | With fusen |
+|---|---|
+| Every new agent session rediscovers how the project works. | Decisions, how-tos and open questions sit in notes that the next session reads first. |
+| Two agents pick up the same piece of work. | An agent claims a task before starting. Of two claims made at the same moment, one wins and the other is told who holds it. |
+| An agent dies halfway and its work is stuck as "in progress". | A claim is a 15-minute lease. If it is not renewed, the task goes back to the queue on its own. |
+| A stuck agent guesses, or stops without telling you. | It parks the task on a question and waits. The note shows "needs you" on your canvas, and your reply hands the task back. |
+| You can't tell what your agents are doing right now. | One canvas shows every note and task, who holds what, and what is waiting on you. It updates within half a second of an agent writing. |
+| You have to ask each agent what changed while you were away. | `fusen log --new` lists what changed since you, or that agent, last looked. |
+| Shared context lives in a hosted tool, away from the code. | Notes are Markdown files in `.fusen/notes/`. They diff in git and travel with the repo. |
+| Each agent tool needs its own integration. | Anything that can run a command or edit a file can use it. One skill teaches Claude Code and Codex the habits. |
 
-It is a single binary with no server to run and no account.
+It is a single binary. Nothing is hosted and there is no account: the canvas is
+served from your own machine, in the browser (`fusen`) or the terminal
+(`fusen tui`).
 
 ## Install
 
