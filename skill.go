@@ -87,6 +87,17 @@ A note with a task state is work someone can take.
   FUSEN_TASK set, keeps the claim alive, and settles the task by the command's
   exit code.
 
+To break work into several tasks at once, pass fusen plan a JSON list. Each
+task takes title, and optionally key, body, labels, needs, for and color. needs
+can name other tasks in the plan by key, or tasks already on the board by id:
+
+    fusen plan - <<'EOF'
+    [{"key": "schema", "title": "Add the perks table"},
+     {"title": "Backfill perks", "needs": ["schema"]}]
+    EOF
+
+It prints each task's key and id. Nothing is added if any part is wrong.
+
 ## Ask the person
 
 When you need a decision, do not guess and do not stop silently:

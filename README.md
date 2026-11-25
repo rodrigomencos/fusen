@@ -122,6 +122,23 @@ is told who holds it and until when.
 `fusen run <id> -- <command>` claims a task, runs the command, keeps the claim
 alive while it runs, and settles the task by the command's exit code.
 
+To lay out several tasks at once, give `fusen plan` a JSON list. A task's
+`needs` can name others in the same plan by `key`, before any of them has an id:
+
+```sh
+fusen plan - <<'EOF'
+[
+  {"key": "schema", "title": "Add the perks table", "for": "codex"},
+  {"key": "backfill", "title": "Backfill perks from orders", "needs": ["schema"]},
+  {"title": "Show perks at checkout", "needs": ["schema", "backfill"], "labels": ["web"]}
+]
+EOF
+```
+
+The whole plan is checked before anything is written, so a mistyped need or
+tasks that need each other in a loop add nothing. Claims take a plan's ready
+tasks in the order it lists them.
+
 ### Questions and mentions
 
 ```sh

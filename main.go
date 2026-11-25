@@ -41,6 +41,9 @@ Tasks (a note with a task state is work someone can claim):
   fusen tasks [--all|--done] open tasks and who holds them; --done lists
                              finished ones, latest first
   fusen add <title> [body] --task [--needs ID]... [--for NAME]
+  fusen plan <file|-> [--json]
+                             add several tasks at once from a JSON list; a
+                             task's needs can name others in it by key
   fusen claim [<id>] [--lease 15m] [--wait 10m] [--label L]...
                              take a task, or the oldest ready one
   fusen renew <id>           keep a claim past its lease
@@ -127,6 +130,8 @@ func dispatch(cmd string, a args) error {
 		return cmdTasks(a)
 	case "claim":
 		return cmdClaim(a)
+	case "plan":
+		return cmdPlan(a)
 	case "renew", "release", "done", "fail", "cancel", "block", "unblock", "reopen", "reply":
 		return cmdTask(cmd, a)
 	case "run":
