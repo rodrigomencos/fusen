@@ -5,6 +5,8 @@ A board of sticky notes that lives in your project, kept by you and your agents.
 
 ![The fusen canvas: notes, a checklist, tasks held by agents, and one question waiting on the person](docs/canvas.png)
 
+![The same board in the terminal, with the person answering the question that is waiting on them](docs/tui.png)
+
 ## Why use it
 
 | Without it | With fusen |
@@ -156,10 +158,17 @@ optional: plain `- [ ]` lines in a note need nothing else.
 
 ## The terminal canvas
 
+Select a note with `tab`, or jump to the one waiting on you with `i`. Press `r`
+to reply, `e` to edit it in a side panel, or `E` to open it in `$EDITOR`.
+
 `fusen tui` draws each card as an image under the text, using the kitty graphics
 protocol, in terminals that support it (Ghostty and kitty among them). Elsewhere
-it falls back to cards made of colored cells. `fusen tui --graphics off` forces
-the fallback. Done tasks are put away here too; press `D` to show or hide them.
+it falls back to cards made of colored cells, which is what the terminal
+screenshots here show. `fusen tui --graphics off` forces the fallback.
+
+Done tasks are put away here too. Press `D` to show or hide them:
+
+![Done tasks back on the terminal canvas after pressing D, each with its result](docs/tui-done.png)
 
 ## What is in `.fusen/`
 
