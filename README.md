@@ -107,6 +107,7 @@ fusen done <id> "what was done"
 fusen cancel <id> "why"      # nobody should do it any more
 fusen tasks                  # open tasks and who holds them
 fusen tasks --done           # finished ones, latest first
+fusen tasks --state blocked  # or narrow by --for NAME, --label L
 ```
 
 ```

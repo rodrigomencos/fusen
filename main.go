@@ -38,9 +38,13 @@ Usage:
   fusen reply <id> <text|->  add a signed reply under a note
 
 Tasks (a note with a task state is work someone can claim):
-  fusen tasks [--all|--done] open tasks and who holds them; --done lists
+  fusen tasks [--all|--done] [--state S]... [--for NAME] [--label L]...
+                             open tasks and who holds them; --done lists
                              finished ones, latest first
   fusen add <title> [body] --task [--needs ID]... [--for NAME]
+  fusen edit <id> [--needs ID]... [--for NAME]
+                             change what a task needs or who it is for
+                             (--needs "" or --for "" clears it)
   fusen plan <file|-> [--json]
                              add several tasks at once from a JSON list; a
                              task's needs can name others in it by key
@@ -464,7 +468,7 @@ func cmdEdit(a args) error {
 	if len(a.pos) == 1 && !a.has("title") && !a.has("label") && !a.has("color") && !a.has("wedo") && !a.has("needs") && !a.has("for") {
 		// Only a person at a terminal gets an editor: an agent would hang in it.
 		if !term.IsTerminal(int(os.Stdin.Fd())) {
-			return errors.New("nothing to change: give a body, --title, --label, --color or --wedo")
+			return errors.New("nothing to change: give a body, --title, --label, --color, --wedo, --needs or --for")
 		}
 		if _, err := s.Get(a.pos[0]); err != nil {
 			return err

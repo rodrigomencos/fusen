@@ -51,7 +51,7 @@ func answer(n *Note, who, text string) {
 }
 
 func cmdTasks(a args) error {
-	if err := a.allow("all", "done", "json"); err != nil {
+	if err := a.allow("all", "done", "state", "for", "label", "json"); err != nil {
 		return err
 	}
 	s, err := openStore()
@@ -62,19 +62,9 @@ func cmdTasks(a args) error {
 	if err != nil {
 		return err
 	}
-	tasks := slices.DeleteFunc(slices.Clone(notes), func(n Note) bool {
-		switch {
-		case a.has("done"):
-			return !n.finished()
-		case a.has("all"):
-			return n.State == ""
-		}
-		return n.State == "" || n.finished()
-	})
-	// Open tasks are listed in the order claim takes them; finished ones latest first.
-	slices.SortStableFunc(tasks, func(x, y Note) int { return x.age().Compare(y.age()) })
-	if a.has("done") {
-		slices.SortStableFunc(tasks, func(x, y Note) int { return y.finishedAt().Compare(x.finishedAt()) })
+	tasks, err := pickTasks(notes, a)
+	if err != nil {
+		return err
 	}
 	if a.has("json") {
 		return json.NewEncoder(os.Stdout).Encode(tasks)
@@ -92,6 +82,52 @@ func cmdTasks(a args) error {
 		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", n.ID, stateText(n), who, n.Title)
 	}
 	return w.Flush()
+}
+
+var taskStates = []string{"ready", "claimed", "blocked", "waiting", "done", "failed", "canceled"}
+
+// pickTasks keeps the tasks a listing asks for: open ones unless --all or
+// --done says otherwise, narrowed by --state, --for and --label. Open tasks
+// come in the order claim takes them, finished ones latest first.
+func pickTasks(notes []Note, a args) ([]Note, error) {
+	for _, st := range a.flags["state"] {
+		if !slices.Contains(taskStates, st) {
+			return nil, fmt.Errorf("--state wants one of %s", strings.Join(taskStates, ", "))
+		}
+	}
+	tasks := slices.DeleteFunc(slices.Clone(notes), func(n Note) bool {
+		switch {
+		case n.State == "":
+			return true
+		case a.has("state"):
+			if !slices.Contains(a.flags["state"], n.State) {
+				return true
+			}
+		case a.has("done"):
+			if !n.finished() {
+				return true
+			}
+		case !a.has("all") && n.finished():
+			return true
+		}
+		if a.has("for") && !strings.EqualFold(n.For, a.get("for")) {
+			return true
+		}
+		return slices.ContainsFunc(a.flags["label"], func(l string) bool { return !slices.Contains(n.Labels, l) })
+	})
+	slices.SortStableFunc(tasks, func(x, y Note) int {
+		if x.finished() != y.finished() {
+			if x.finished() {
+				return 1
+			}
+			return -1
+		}
+		if x.finished() {
+			return y.finishedAt().Compare(x.finishedAt())
+		}
+		return x.age().Compare(y.age())
+	})
+	return tasks, nil
 }
 
 // stateText says what a task is waiting on, where the state alone does not.

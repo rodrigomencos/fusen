@@ -1,6 +1,7 @@
 package main
 
 import (
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -103,4 +104,50 @@ func TestCancelPlainNote(t *testing.T) {
 	save(t, s, Note{ID: "idea", Title: "An idea"})
 	_, err := s.change("idea", func(n *Note, _ []Note) error { return cancel(n, "alex") })
 	wantErr(t, err, "not_a_task")
+}
+
+func TestPickTasks(t *testing.T) {
+	now := time.Now()
+	notes := []Note{
+		{ID: "idea", Title: "Just a note"},
+		{ID: "old", State: "ready", Created: now.Add(-3 * time.Hour), Labels: []string{"db"}},
+		{ID: "new", State: "ready", Created: now.Add(-time.Hour), For: "codex", Labels: []string{"db", "api"}},
+		{ID: "held", State: "claimed", Holder: "claude", Created: now.Add(-2 * time.Hour)},
+		{ID: "asks", State: "blocked", Holder: "claude", Created: now.Add(-4 * time.Hour), For: "codex"},
+		{ID: "shipped", State: "done", Task: "done", Finished: now.Add(-time.Minute)},
+		{ID: "dropped", State: "canceled", Task: "canceled", Finished: now.Add(-time.Hour)},
+	}
+	cases := map[string][]string{
+		"":                              {"asks", "old", "held", "new"},
+		"--all":                         {"asks", "old", "held", "new", "shipped", "dropped"},
+		"--done":                        {"shipped", "dropped"},
+		"--state blocked":               {"asks"},
+		"--state ready --state claimed": {"old", "held", "new"},
+		"--state canceled":              {"dropped"},
+		"--for codex":                   {"asks", "new"},
+		"--label db":                    {"old", "new"},
+		"--label db --label api":        {"new"},
+		"--for codex --label db":        {"new"},
+	}
+	for flags, want := range cases {
+		a, err := parseArgs(strings.Fields(flags))
+		if err != nil {
+			t.Fatal(err)
+		}
+		tasks, err := pickTasks(notes, a)
+		if err != nil {
+			t.Fatalf("%q: %v", flags, err)
+		}
+		var got []string
+		for _, n := range tasks {
+			got = append(got, n.ID)
+		}
+		if !slices.Equal(got, want) {
+			t.Errorf("fusen tasks %s: got %v, want %v", flags, got, want)
+		}
+	}
+	a, _ := parseArgs([]string{"--state", "stuck"})
+	if _, err := pickTasks(notes, a); err == nil {
+		t.Error("--state stuck was accepted")
+	}
 }

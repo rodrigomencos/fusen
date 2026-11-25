@@ -67,6 +67,7 @@ A checklist is Markdown in the note: lines of "- [ ] item".
 A note with a task state is work someone can take.
 
     fusen tasks                       open tasks and who holds them
+    fusen tasks --for <name>          the ones set aside for you
     fusen add "Title" "what done looks like" --task [--needs <id>] [--for <name>]
     fusen claim <id>                  take one; or fusen claim with no id for the oldest ready one
     fusen renew <id>                  keep it: a claim lasts 15 minutes
