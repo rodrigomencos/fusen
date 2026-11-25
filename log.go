@@ -26,7 +26,7 @@ import (
 type Event struct {
 	N        int       `json:"n"` // the event's place in the log, and the cursor to read on from
 	At       time.Time `json:"at"`
-	Type     string    `json:"type"` // created, edited, deleted, replied, task.<state> or task.renewed
+	Type     string    `json:"type"` // created, edited, deleted, replied, task.<state>, task.renewed or task.expired
 	ID       string    `json:"id"`
 	Title    string    `json:"title,omitempty"`
 	By       string    `json:"by,omitempty"`
@@ -38,6 +38,9 @@ type Event struct {
 
 func (e Event) String() string {
 	s := fmt.Sprintf("#%d %s %s %s", e.N, e.At.Local().Format("15:04"), e.Type, e.ID)
+	if e.Type == "task.expired" {
+		return s + " (" + e.Holder + "'s claim ran out)"
+	}
 	if e.Kind != "" {
 		s += " (" + e.Kind + ")"
 	}
@@ -66,6 +69,8 @@ type snapshot struct {
 	Text     string         `json:"text"` // hash of what a reader sees: title and body
 	Task     string         `json:"task,omitempty"`
 	Holder   string         `json:"holder,omitempty"`
+	Until    time.Time      `json:"until,omitzero"`    // when a claim runs out
+	Expired  bool           `json:"expired,omitempty"` // that it ran out was logged
 	Replies  int            `json:"replies,omitempty"`
 	Mentions map[string]int `json:"mentions,omitempty"`
 }
@@ -79,7 +84,7 @@ func (s Store) local(name string) string { return s.dir + "/.local/" + name }
 
 func take(n Note) snapshot {
 	sum := sha256.Sum256([]byte(n.Title + "\n" + n.Body))
-	snap := snapshot{Rev: n.Rev, Title: cmp.Or(n.Title, n.ID), Text: hex.EncodeToString(sum[:6]), Task: n.Task, Holder: n.Holder}
+	snap := snapshot{Rev: n.Rev, Title: cmp.Or(n.Title, n.ID), Text: hex.EncodeToString(sum[:6]), Task: n.Task, Holder: n.Holder, Until: n.Until}
 	snap.Replies = len(reReply.FindAllString(n.Body, -1))
 	for _, name := range mentions(n.Body) {
 		if snap.Mentions == nil {
@@ -88,6 +93,30 @@ func take(n Note) snapshot {
 		snap.Mentions[name]++
 	}
 	return snap
+}
+
+// changes names what happened to a note whose file changed since old was taken.
+func changes(old, cur snapshot, known bool) []string {
+	var types []string
+	if !known {
+		types = append(types, "created")
+	}
+	if known && cur.Replies > old.Replies {
+		types = append(types, "replied")
+	}
+	// A claim taken after the last one ran out is a new claim, even by the same holder.
+	reclaimed := old.Expired && cur.Task == "claimed" && !cur.Until.Equal(old.Until)
+	if cur.Task != "" && (cur.Task != old.Task || cur.Holder != old.Holder || reclaimed) {
+		types = append(types, "task."+cur.Task)
+	}
+	if len(types) == 0 {
+		types = []string{"edited"}
+		// A longer lease is the only thing that changes a held task without changing its text.
+		if cur.Task == "claimed" && cur.Text == old.Text {
+			types = []string{"task.renewed"}
+		}
+	}
+	return types
 }
 
 // Sync brings the log up to date with the notes on disk.
@@ -109,30 +138,24 @@ func (s Store) Sync() error {
 		now := map[string]snapshot{}
 		for _, n := range notes {
 			cur := take(n)
-			now[n.ID] = cur
 			old, known := st.Notes[n.ID]
-			if known && old.Rev == cur.Rev {
-				continue
-			}
 			var types []string
-			if !known {
-				types = append(types, "created")
+			if known && old.Rev == cur.Rev {
+				cur.Expired = old.Expired
+			} else {
+				types = changes(old, cur, known)
 			}
-			if known && cur.Replies > old.Replies {
-				types = append(types, "replied")
+			// A claim that runs out changes no file, so only the clock tells, once.
+			if cur.Task == "claimed" && !cur.Until.IsZero() && time.Now().After(cur.Until) && !cur.Expired {
+				cur.Expired = true
+				types = append(types, "task.expired")
 			}
-			if cur.Task != "" && (cur.Task != old.Task || cur.Holder != old.Holder) {
-				types = append(types, "task."+cur.Task)
-			}
-			if len(types) == 0 {
-				types = []string{"edited"}
-				// A longer lease is the only thing that changes a held task without changing its text.
-				if cur.Task == "claimed" && cur.Text == old.Text {
-					types = []string{"task.renewed"}
-				}
-			}
+			now[n.ID] = cur
 			for i, t := range types {
 				e := Event{Type: t, ID: n.ID, Title: cur.Title, By: n.By}
+				if t == "task.expired" {
+					e.By, e.At = "", cur.Until // nobody did it, and it happened then, not when noticed
+				}
 				if i == 0 {
 					for name, count := range cur.Mentions {
 						if count > old.Mentions[name] {
@@ -165,7 +188,7 @@ func (s Store) Sync() error {
 		var lines strings.Builder
 		for _, e := range events {
 			st.Next++
-			e.N, e.At = st.Next, time.Now()
+			e.N, e.At = st.Next, cmp.Or(e.At, time.Now())
 			line, _ := json.Marshal(e)
 			lines.Write(append(line, '\n'))
 		}

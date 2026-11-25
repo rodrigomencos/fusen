@@ -166,7 +166,9 @@ fusen tail           # as it happens
 ```
 
 Notes edited by hand are logged too: the log is built by comparing the notes
-with what they were, not by the commands that change them.
+with what they were, not by the commands that change them. A claim that runs
+out is logged as well, as `task.expired`, so whoever is waiting on a task with
+`fusen wait <id>` hears when the agent holding it went away.
 
 ## Checklists from wedo
 

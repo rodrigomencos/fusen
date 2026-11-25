@@ -77,6 +77,8 @@ A note with a task state is work someone can take.
 
 - Claim before you start, so nobody else does the same work.
 - Renew while you work. If your claim runs out the task is free for others.
+- To follow a task someone else holds, fusen wait <id>. It returns when they
+  settle it, ask something, or their claim runs out (task.expired).
 - An error starting with claim_lost means someone else holds the task now.
   Stop working on it and say so in a reply.
 - task_canceled means someone called the task off while you worked on it.
