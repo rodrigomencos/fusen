@@ -138,7 +138,7 @@ body.moving #viewport { cursor: grabbing; }
 .md a { color: var(--accent); }
 .md .none { color: var(--muted); font-style: italic; }
 .task-row { display: flex; flex-wrap: wrap; gap: 4px; padding: 0 13px 5px; font-size: 11.5px; }
-.task-row .chip { color: var(--muted); }
+.task-row .chip { color: var(--muted); max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .task-row .chip.you { color: #fff; background: var(--accent); border-color: var(--accent); font-weight: 600; }
 .task-row .chip.claimed, .task-row .chip.blocked { color: var(--ink); border-color: var(--muted); }
 .note.needs-me { box-shadow: 0 0 0 2px var(--accent), var(--shadow); }
@@ -434,7 +434,7 @@ function taskRow(n) {
     blocked: `blocked · ${(n.blocked || 'needs input').replace(/_/g, ' ')}${n.holder ? ' · ' + n.holder : ''}`,
     waiting: waitingOn(n),
   }[n.state] || n.state;
-  if (text) chips.push(`<span class="chip ${esc(n.state)}">${esc(text)}</span>`);
+  if (text) chips.push(`<span class="chip ${esc(n.state)}" title="${esc(text)}">${esc(text)}</span>`);
   if (n.for && n.state !== 'claimed') chips.push(`<span class="chip">for ${esc(n.for)}</span>`);
   return chips.length ? `<div class="task-row">${chips.join('')}</div>` : '';
 }
