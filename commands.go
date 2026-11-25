@@ -103,7 +103,7 @@ func stateText(n Note) string {
 		return "blocked: " + cmp.Or(n.Blocked, "needs_input")
 	case "waiting":
 		return "waiting on " + strings.Join(n.Needs, ", ")
-	case "done", "failed":
+	case "done", "failed", "canceled":
 		return n.State + " " + ago(n.finishedAt())
 	}
 	return n.State
@@ -182,7 +182,7 @@ func cmdTask(verb string, a args) error {
 	if err := a.allow("as", "lease", "kind", "ask"); err != nil {
 		return err
 	}
-	needsText := slices.Contains([]string{"fail", "block", "reply"}, verb)
+	needsText := slices.Contains([]string{"fail", "block", "reply", "cancel"}, verb)
 	takesText := needsText || verb == "done"
 	if len(a.pos) < 1 || (needsText && len(a.pos) < 2) || len(a.pos) > 2 || (!takesText && len(a.pos) > 1) {
 		if takesText {
@@ -212,6 +212,12 @@ func cmdTask(verb string, a args) error {
 			return nil
 		case "reopen":
 			settle(n, who, "ready")
+			return nil
+		case "cancel":
+			if err := cancel(n, who); err != nil {
+				return err
+			}
+			addReply(n, who, text)
 			return nil
 		case "renew":
 			return renew(n, who, lease)
@@ -255,6 +261,21 @@ func cmdTask(verb string, a args) error {
 		fmt.Printf("%s: blocked. fusen wait %s returns when someone answers\n", n.ID, n.ID)
 	default:
 		fmt.Printf("%s: %s\n", n.ID, n.Task)
+	}
+	if verb == "cancel" {
+		// A task that needs a canceled one would wait for ever, so say which ones do.
+		notes, err := s.List()
+		if err != nil {
+			return err
+		}
+		for _, d := range dependents(n.ID, notes) {
+			rest := slices.DeleteFunc(slices.Clone(d.Needs), func(id string) bool { return id == n.ID })
+			drop := ` --needs ""`
+			if len(rest) > 0 {
+				drop = " --needs " + strings.Join(rest, " --needs ")
+			}
+			fmt.Printf("%s waits on it: cancel that too, or drop the need with fusen edit %s%s\n", d.ID, d.ID, drop)
+		}
 	}
 	return nil
 }

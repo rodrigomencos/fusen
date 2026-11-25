@@ -46,6 +46,7 @@ Tasks (a note with a task state is work someone can claim):
   fusen renew <id>           keep a claim past its lease
   fusen done <id> [result]   finish it
   fusen fail <id> <reason>
+  fusen cancel <id> <reason> call it off: nobody should do it any more
   fusen release <id>         give it back untouched
   fusen block <id> <question> [--kind needs_input|awaiting_approval] [--ask NAME]
                              park it on a question for a person
@@ -126,7 +127,7 @@ func dispatch(cmd string, a args) error {
 		return cmdTasks(a)
 	case "claim":
 		return cmdClaim(a)
-	case "renew", "release", "done", "fail", "block", "unblock", "reopen", "reply":
+	case "renew", "release", "done", "fail", "cancel", "block", "unblock", "reopen", "reply":
 		return cmdTask(cmd, a)
 	case "run":
 		return cmdRun(a)
@@ -491,7 +492,8 @@ func cmdEdit(a args) error {
 			n.Wedo = a.get("wedo")
 		}
 		if a.has("needs") {
-			n.Needs = a.flags["needs"]
+			// --needs "" clears them.
+			n.Needs = slices.DeleteFunc(slices.Clone(a.flags["needs"]), func(id string) bool { return id == "" })
 		}
 		if a.has("for") {
 			n.For = a.get("for")

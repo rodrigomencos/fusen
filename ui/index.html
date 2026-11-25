@@ -354,12 +354,14 @@ function apply(state) {
   document.title = state.name + ' · fusen';
   $('#name').textContent = state.name;
   $('#name').title = state.root;
-  const seen = new Set(), finishing = [];
+  const seen = new Set(), finishing = [], before = new Map(notes);
+  // Every note first, so a card can say how the tasks it waits on are doing.
+  for (const n of state.notes) notes.set(n.id, n);
+  const shown = (x, all) => JSON.stringify([x.rev, x.items, x.itemsError, x.state, x.needsMe, (x.needs || []).map(id => all.get(id)?.state)]);
   for (const n of state.notes) {
     seen.add(n.id);
-    const old = notes.get(n.id);
+    const old = before.get(n.id);
     if (loaded && old && !isDone(old) && isDone(n)) finishing.push(n);
-    notes.set(n.id, n);
     let el = els.get(n.id);
     if (!el) {
       el = document.createElement('article');
@@ -369,8 +371,7 @@ function apply(state) {
       els.set(n.id, el);
     }
     if (moving !== n.id) { layout[n.id] = state.layout[n.id]; place(n.id); }
-    const shown = x => JSON.stringify([x.rev, x.items, x.itemsError, x.state, x.needsMe]);
-    const changed = !old || shown(old) !== shown(n);
+    const changed = !old || shown(old, before) !== shown(n, notes);
     if (editor && editor.id === n.id) {
       if (n.rev !== editor.rev) el.classList.add('stale');
     } else if (changed) {
@@ -397,8 +398,9 @@ function putAway(list) {
   if (!list.length) return;
   const btn = $('[data-panel=done]');
   btn.classList.remove('bump'); void btn.offsetWidth; btn.classList.add('bump');
-  const what = list.length === 1 ? `"${list[0].title || list[0].id}" is` : list.length + ' tasks are';
-  hint(`${what} done. Find ${list.length === 1 ? 'it' : 'them'} under Done.`);
+  hint(list.length === 1
+    ? `"${list[0].title || list[0].id}" is ${list[0].state}. Find it under Done.`
+    : `${list.length} tasks are finished. Find them under Done.`);
 }
 
 // ---------- Notes ----------
@@ -419,6 +421,9 @@ function ago(iso) {
   return new Date(iso).toLocaleDateString(undefined, {month: 'short', day: 'numeric', year: 'numeric'});
 }
 
+// The tasks a waiting task needs, marking those that were called off and so will never be done.
+const waitingOn = n => 'waiting on ' + (n.needs || []).map(id => notes.get(id)?.state === 'canceled' ? id + ' (canceled)' : id).join(', ');
+
 // What a task is doing right now, and whether the note is waiting on the person looking.
 function taskRow(n) {
   const chips = [];
@@ -427,7 +432,7 @@ function taskRow(n) {
   const text = {
     claimed: `claimed · ${n.holder} · until ${until}`,
     blocked: `blocked · ${(n.blocked || 'needs input').replace(/_/g, ' ')}${n.holder ? ' · ' + n.holder : ''}`,
-    waiting: `waiting on ${(n.needs || []).join(', ')}`,
+    waiting: waitingOn(n),
   }[n.state] || n.state;
   if (text) chips.push(`<span class="chip ${esc(n.state)}">${esc(text)}</span>`);
   if (n.for && n.state !== 'claimed') chips.push(`<span class="chip">for ${esc(n.for)}</span>`);
@@ -507,7 +512,7 @@ function showEditor(el, n) {
     <input class="e-wedo" value="${esc(n.wedo || '')}" placeholder="wedo list to show on the card (optional)" aria-label="wedo list">
     <div class="e-row">
       ${COLORS.map(c => `<button class="sw${c === editor.color ? ' on' : ''}" data-color="${c}" style="--s:var(--${c})" title="${c}" aria-label="${c}"></button>`).join('')}
-      <select class="e-task" aria-label="Task state">${[['', 'Not a task'], ['ready', 'Task: ready'], ['done', 'Task: done'], ...(['', 'ready', 'done'].includes(n.task || '') ? [] : [[n.task, 'Task: ' + n.task]])]
+      <select class="e-task" aria-label="Task state">${[['', 'Not a task'], ['ready', 'Task: ready'], ['done', 'Task: done'], ['canceled', 'Task: canceled'], ...(['', 'ready', 'done', 'canceled'].includes(n.task || '') ? [] : [[n.task, 'Task: ' + n.task]])]
         .map(([v, t]) => `<option value="${esc(v)}"${v === (n.task || '') ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select>
       <span class="changed">Changed on disk</span><span class="grow"></span>
       ${editor.id === null ? '' : '<button class="del">Delete</button>'}<button class="cancel">Cancel</button><button class="save primary">Save</button>
@@ -608,7 +613,7 @@ const matches = (n, q) => !q || [n.id, n.title, n.by, n.body, n.wedo, ...n.label
 
 // A finished task leaves the canvas for the Done shelf, unless the person keeps them out,
 // has it open in the editor, or it is waiting on them.
-const isDone = n => n.state === 'done' || n.state === 'failed';
+const isDone = n => n.state === 'done' || n.state === 'failed' || n.state === 'canceled';
 const onCanvas = id => prefs.showDone || !isDone(notes.get(id)) || notes.get(id).needsMe || (editor && editor.id === id);
 
 function applyFilter() {
@@ -662,7 +667,7 @@ function openRow(n) {
   if (n.state) bits.push(esc({
     claimed: `claimed by ${n.holder}`,
     blocked: `blocked${n.holder ? ' · ' + n.holder : ''}`,
-    waiting: `waiting on ${(n.needs || []).join(', ')}`,
+    waiting: waitingOn(n),
   }[n.state] || n.state));
   if (n.labels.length) bits.push(esc(n.labels.join(', ')));
   bits.push(esc(when));
@@ -704,7 +709,7 @@ function renderList() {
   $('.p-foot').hidden = panel !== 'done';
 
   const none = q ? 'Nothing here matches the filter.'
-    : panel === 'done' ? 'No finished tasks yet. A task lands here when it is marked done or failed.'
+    : panel === 'done' ? 'No finished tasks yet. A task lands here when it is done, failed or canceled.'
     : prefs.kind === 'tasks' ? 'No open tasks.' : 'Nothing open.';
   const html = list.map(panel === 'done' ? doneRow : openRow).join('') || `<li class="none">${none}</li>`;
   if (html !== listHTML) $('#rows').innerHTML = listHTML = html;

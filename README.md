@@ -43,8 +43,8 @@ fusen tui        # the canvas, in the terminal
 Either one creates `.fusen/` on first run. On the canvas, double-click empty
 space for a new note and double-click a note to edit it.
 
-A task that is done or failed leaves the canvas for the **Done** shelf, so the
-canvas shows only what is still in play. Notes keep their places: reopen a task
+A task that is done, failed or canceled leaves the canvas for the **Done**
+shelf, so the canvas shows only what is still in play. Notes keep their places: reopen a task
 and it comes back where it was. In the browser:
 
 - **Done** lists finished tasks, latest first, each with its result. Click one
@@ -104,6 +104,7 @@ fusen add "Review the rate limiter" --task --needs rate-limit-the-checkout-api -
 fusen claim                  # take the oldest ready task
 fusen renew <id>             # a claim lasts 15 minutes
 fusen done <id> "what was done"
+fusen cancel <id> "why"      # nobody should do it any more
 fusen tasks                  # open tasks and who holds them
 fusen tasks --done           # finished ones, latest first
 ```

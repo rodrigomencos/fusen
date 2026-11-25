@@ -61,14 +61,14 @@ type Note struct {
 	Rev     string    `json:"rev"`
 
 	// A note with a task state is work someone can claim. See tasks.go.
-	Task    string    `json:"task"`              // ready, claimed, blocked, done or failed, as the file says
+	Task    string    `json:"task"`              // ready, claimed, blocked, done, failed or canceled, as the file says
 	Holder  string    `json:"holder,omitempty"`  // who claimed it
 	Until   time.Time `json:"until,omitzero"`    // when that claim runs out
 	Blocked string    `json:"blocked,omitempty"` // why it is blocked, such as needs_input
 	Needs   []string  `json:"needs,omitempty"`   // tasks that must be done first
 	For     string    `json:"for,omitempty"`     // the only one who may claim it
 	Created time.Time `json:"created,omitzero"`
-	// When a done or failed task was settled. Older files may not say.
+	// When a done, failed or canceled task was settled. Older files may not say.
 	Finished time.Time `json:"finished,omitzero"`
 
 	// Filled in by Board for whoever is looking: what the task is right now,

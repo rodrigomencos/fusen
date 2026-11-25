@@ -73,11 +73,14 @@ A note with a task state is work someone can take.
     fusen done <id> "what you did"
     fusen fail <id> "why"
     fusen release <id>                give it back untouched
+    fusen cancel <id> "why"           call it off: nobody should do it any more
 
 - Claim before you start, so nobody else does the same work.
 - Renew while you work. If your claim runs out the task is free for others.
 - An error starting with claim_lost means someone else holds the task now.
   Stop working on it and say so in a reply.
+- task_canceled means someone called the task off while you worked on it.
+  Stop, and leave it canceled.
 - task_claimed, task_waiting and task_assigned mean the task is not yours to
   take yet. Pick another.
 - fusen run <id> -- <command> claims the task, runs the command with
