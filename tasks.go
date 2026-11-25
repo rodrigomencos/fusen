@@ -30,7 +30,7 @@ const defaultLease = 15 * time.Minute
 // lapsed claim makes it ready again and unfinished prerequisites make it wait.
 func taskState(n Note, notes []Note) string {
 	switch n.Task {
-	case "", "blocked", "done", "failed":
+	case "", "blocked", "done", "failed", "canceled":
 		return n.Task
 	case "claimed":
 		if time.Now().Before(n.Until) {
@@ -151,10 +151,14 @@ func (n Note) age() time.Time {
 	return n.Created
 }
 
-// held checks that who may settle a task: it is a task and nobody else has a live claim on it.
+// held checks that who may settle a task: it is a task, nobody called it off,
+// and nobody else has a live claim on it.
 func held(n *Note, notes []Note, who string) error {
 	if n.Task == "" {
 		return fmt.Errorf("not_a_task: %s is a plain note", n.ID)
+	}
+	if err := calledOff(*n); err != nil {
+		return err
 	}
 	if taskState(*n, notes) == "claimed" && !strings.EqualFold(n.Holder, who) {
 		return fmt.Errorf("claim_lost: %s holds %s now, stop working on it", n.Holder, n.ID)
@@ -163,6 +167,9 @@ func held(n *Note, notes []Note, who string) error {
 }
 
 func renew(n *Note, who string, lease time.Duration) error {
+	if err := calledOff(*n); err != nil {
+		return err
+	}
 	if n.Task != "claimed" || !strings.EqualFold(n.Holder, who) {
 		return fmt.Errorf("claim_lost: %s does not hold %s, stop working on it", who, n.ID)
 	}
@@ -170,7 +177,15 @@ func renew(n *Note, who string, lease time.Duration) error {
 	return nil
 }
 
-// settle moves a task to a state nobody holds: ready, done or failed.
+// calledOff is the error for working on a task that was canceled meanwhile.
+func calledOff(n Note) error {
+	if n.Task == "canceled" {
+		return fmt.Errorf("task_canceled: %s canceled %s, stop working on it", cmp.Or(n.By, "someone"), n.ID)
+	}
+	return nil
+}
+
+// settle moves a task to a state nobody holds: ready, done, failed or canceled.
 func settle(n *Note, who, state string) {
 	n.Task, n.Holder, n.Until, n.Blocked, n.By = state, "", time.Time{}, "", who
 	n.Finished = time.Time{}
@@ -179,9 +194,33 @@ func settle(n *Note, who, state string) {
 	}
 }
 
-// finished reports whether a task is settled for good, done or failed, and so
-// sits on the board's Done shelf instead of the canvas.
-func (n Note) finished() bool { return n.Task == "done" || n.Task == "failed" }
+// finished reports whether a task is settled for good, done, failed or
+// canceled, and so sits on the board's Done shelf instead of the canvas.
+func (n Note) finished() bool { return n.Task == "done" || n.Task == "failed" || n.Task == "canceled" }
+
+// cancel calls a task off: nobody should do it any more. Whoever holds it
+// loses the claim, and hears so the next time they renew or settle it.
+func cancel(n *Note, who string) error {
+	switch {
+	case n.Task == "":
+		return fmt.Errorf("not_a_task: %s is a plain note", n.ID)
+	case n.finished():
+		return fmt.Errorf("task_%s: %s is already %s (fusen reopen %s puts it back)", n.Task, n.ID, n.Task, n.ID)
+	}
+	settle(n, who, "canceled")
+	return nil
+}
+
+// dependents lists the unfinished tasks that need id.
+func dependents(id string, notes []Note) []Note {
+	var out []Note
+	for _, n := range notes {
+		if n.Task != "" && !n.finished() && slices.Contains(n.Needs, id) {
+			out = append(out, n)
+		}
+	}
+	return out
+}
 
 // finishedAt is when a task was settled, or when its file was last written if it does not say.
 func (n Note) finishedAt() time.Time {

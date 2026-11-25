@@ -38,14 +38,22 @@ Usage:
   fusen reply <id> <text|->  add a signed reply under a note
 
 Tasks (a note with a task state is work someone can claim):
-  fusen tasks [--all|--done] open tasks and who holds them; --done lists
+  fusen tasks [--all|--done] [--state S]... [--for NAME] [--label L]...
+                             open tasks and who holds them; --done lists
                              finished ones, latest first
   fusen add <title> [body] --task [--needs ID]... [--for NAME]
+  fusen edit <id> [--needs ID]... [--for NAME]
+                             change what a task needs or who it is for
+                             (--needs "" or --for "" clears it)
+  fusen plan <file|-> [--json]
+                             add several tasks at once from a JSON list; a
+                             task's needs can name others in it by key
   fusen claim [<id>] [--lease 15m] [--wait 10m] [--label L]...
                              take a task, or the oldest ready one
   fusen renew <id>           keep a claim past its lease
   fusen done <id> [result]   finish it
   fusen fail <id> <reason>
+  fusen cancel <id> <reason> call it off: nobody should do it any more
   fusen release <id>         give it back untouched
   fusen block <id> <question> [--kind needs_input|awaiting_approval] [--ask NAME]
                              park it on a question for a person
@@ -126,7 +134,9 @@ func dispatch(cmd string, a args) error {
 		return cmdTasks(a)
 	case "claim":
 		return cmdClaim(a)
-	case "renew", "release", "done", "fail", "block", "unblock", "reopen", "reply":
+	case "plan":
+		return cmdPlan(a)
+	case "renew", "release", "done", "fail", "cancel", "block", "unblock", "reopen", "reply":
 		return cmdTask(cmd, a)
 	case "run":
 		return cmdRun(a)
@@ -458,7 +468,7 @@ func cmdEdit(a args) error {
 	if len(a.pos) == 1 && !a.has("title") && !a.has("label") && !a.has("color") && !a.has("wedo") && !a.has("needs") && !a.has("for") {
 		// Only a person at a terminal gets an editor: an agent would hang in it.
 		if !term.IsTerminal(int(os.Stdin.Fd())) {
-			return errors.New("nothing to change: give a body, --title, --label, --color or --wedo")
+			return errors.New("nothing to change: give a body, --title, --label, --color, --wedo, --needs or --for")
 		}
 		if _, err := s.Get(a.pos[0]); err != nil {
 			return err
@@ -491,7 +501,8 @@ func cmdEdit(a args) error {
 			n.Wedo = a.get("wedo")
 		}
 		if a.has("needs") {
-			n.Needs = a.flags["needs"]
+			// --needs "" clears them.
+			n.Needs = slices.DeleteFunc(slices.Clone(a.flags["needs"]), func(id string) bool { return id == "" })
 		}
 		if a.has("for") {
 			n.For = a.get("for")

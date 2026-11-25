@@ -43,8 +43,8 @@ fusen tui        # the canvas, in the terminal
 Either one creates `.fusen/` on first run. On the canvas, double-click empty
 space for a new note and double-click a note to edit it.
 
-A task that is done or failed leaves the canvas for the **Done** shelf, so the
-canvas shows only what is still in play. Notes keep their places: reopen a task
+A task that is done, failed or canceled leaves the canvas for the **Done**
+shelf, so the canvas shows only what is still in play. Notes keep their places: reopen a task
 and it comes back where it was. In the browser:
 
 - **Done** lists finished tasks, latest first, each with its result. Click one
@@ -104,8 +104,10 @@ fusen add "Review the rate limiter" --task --needs rate-limit-the-checkout-api -
 fusen claim                  # take the oldest ready task
 fusen renew <id>             # a claim lasts 15 minutes
 fusen done <id> "what was done"
+fusen cancel <id> "why"      # nobody should do it any more
 fusen tasks                  # open tasks and who holds them
 fusen tasks --done           # finished ones, latest first
+fusen tasks --state blocked  # or narrow by --for NAME, --label L
 ```
 
 ```
@@ -120,6 +122,23 @@ is told who holds it and until when.
 
 `fusen run <id> -- <command>` claims a task, runs the command, keeps the claim
 alive while it runs, and settles the task by the command's exit code.
+
+To lay out several tasks at once, give `fusen plan` a JSON list. A task's
+`needs` can name others in the same plan by `key`, before any of them has an id:
+
+```sh
+fusen plan - <<'EOF'
+[
+  {"key": "schema", "title": "Add the perks table", "for": "codex"},
+  {"key": "backfill", "title": "Backfill perks from orders", "needs": ["schema"]},
+  {"title": "Show perks at checkout", "needs": ["schema", "backfill"], "labels": ["web"]}
+]
+EOF
+```
+
+The whole plan is checked before anything is written, so a mistyped need or
+tasks that need each other in a loop add nothing. Claims take a plan's ready
+tasks in the order it lists them.
 
 ### Questions and mentions
 
@@ -148,7 +167,9 @@ fusen tail           # as it happens
 ```
 
 Notes edited by hand are logged too: the log is built by comparing the notes
-with what they were, not by the commands that change them.
+with what they were, not by the commands that change them. A claim that runs
+out is logged as well, as `task.expired`, so whoever is waiting on a task with
+`fusen wait <id>` hears when the agent holding it went away.
 
 ## Checklists from wedo
 

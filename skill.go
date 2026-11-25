@@ -67,22 +67,39 @@ A checklist is Markdown in the note: lines of "- [ ] item".
 A note with a task state is work someone can take.
 
     fusen tasks                       open tasks and who holds them
+    fusen tasks --for <name>          the ones set aside for you
     fusen add "Title" "what done looks like" --task [--needs <id>] [--for <name>]
     fusen claim <id>                  take one; or fusen claim with no id for the oldest ready one
     fusen renew <id>                  keep it: a claim lasts 15 minutes
     fusen done <id> "what you did"
     fusen fail <id> "why"
     fusen release <id>                give it back untouched
+    fusen cancel <id> "why"           call it off: nobody should do it any more
 
 - Claim before you start, so nobody else does the same work.
 - Renew while you work. If your claim runs out the task is free for others.
+- To follow a task someone else holds, fusen wait <id>. It returns when they
+  settle it, ask something, or their claim runs out (task.expired).
 - An error starting with claim_lost means someone else holds the task now.
   Stop working on it and say so in a reply.
+- task_canceled means someone called the task off while you worked on it.
+  Stop, and leave it canceled.
 - task_claimed, task_waiting and task_assigned mean the task is not yours to
   take yet. Pick another.
 - fusen run <id> -- <command> claims the task, runs the command with
   FUSEN_TASK set, keeps the claim alive, and settles the task by the command's
   exit code.
+
+To break work into several tasks at once, pass fusen plan a JSON list. Each
+task takes title, and optionally key, body, labels, needs, for and color. needs
+can name other tasks in the plan by key, or tasks already on the board by id:
+
+    fusen plan - <<'EOF'
+    [{"key": "schema", "title": "Add the perks table"},
+     {"title": "Backfill perks", "needs": ["schema"]}]
+    EOF
+
+It prints each task's key and id. Nothing is added if any part is wrong.
 
 ## Ask the person
 
