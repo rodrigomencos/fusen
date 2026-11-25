@@ -29,7 +29,7 @@ Usage:
                              open it in the terminal instead
   fusen serve [--port N] [--no-open]
   fusen init                 create .fusen/ in the current directory
-  fusen ls [--label L] [--json]
+  fusen ls [--label L] [--sort newest|oldest|changed|title] [--json]
   fusen read <id>... [--json]
   fusen add <title> [body|-] [--as NAME] [--label L]... [--color C] [--wedo LIST]
   fusen edit <id>            open the note in $EDITOR
@@ -38,7 +38,8 @@ Usage:
   fusen reply <id> <text|->  add a signed reply under a note
 
 Tasks (a note with a task state is work someone can claim):
-  fusen tasks [--all]        open tasks and who holds them
+  fusen tasks [--all|--done] open tasks and who holds them; --done lists
+                             finished ones, latest first
   fusen add <title> [body] --task [--needs ID]... [--for NAME]
   fusen claim [<id>] [--lease 15m] [--wait 10m] [--label L]...
                              take a task, or the oldest ready one
@@ -149,7 +150,7 @@ type args struct {
 	rest  []string // everything after a bare --, for commands that run another command
 }
 
-var boolFlags = []string{"json", "append", "no-open", "help", "task", "all", "new", "mentions"}
+var boolFlags = []string{"json", "append", "no-open", "help", "task", "all", "done", "new", "mentions"}
 
 // parseArgs accepts flags anywhere among the positional arguments.
 func parseArgs(in []string) (args, error) {
@@ -348,7 +349,7 @@ func openBrowser(url string) {
 }
 
 func cmdList(a args) error {
-	if err := a.allow("label", "json"); err != nil {
+	if err := a.allow("label", "sort", "json"); err != nil {
 		return err
 	}
 	s, err := openStore()
@@ -361,6 +362,11 @@ func cmdList(a args) error {
 	}
 	if a.has("label") {
 		notes = slices.DeleteFunc(notes, func(n Note) bool { return !slices.Contains(n.Labels, a.get("label")) })
+	}
+	if a.has("sort") {
+		if err := sortNotes(notes, a.get("sort")); err != nil {
+			return err
+		}
 	}
 	if a.has("json") {
 		return json.NewEncoder(os.Stdout).Encode(notes)

@@ -41,11 +41,23 @@ fusen tui        # the canvas, in the terminal
 Either one creates `.fusen/` on first run. On the canvas, double-click empty
 space for a new note and double-click a note to edit it.
 
+A task that is done or failed leaves the canvas for the **Done** shelf, so the
+canvas shows only what is still in play. Notes keep their places: reopen a task
+and it comes back where it was. In the browser:
+
+- **Done** lists finished tasks, latest first, each with its result. Click one
+  to read the whole note, or **Reopen** it. A checkbox there keeps done tasks
+  on the canvas instead.
+- **List** shows everything still open, as a list you can sort (newest, oldest,
+  last changed, title) and narrow to tasks or plain notes. Click a row to find
+  the note on the canvas. The filter box narrows the list too.
+
 From the command line:
 
 ```sh
 fusen add "Deploy to staging" "make deploy ENV=staging" --label how-to
 fusen ls
+fusen ls --sort newest              # or oldest, changed, title
 fusen read deploy-to-staging
 fusen edit deploy-to-staging "Check /healthz after." --append
 fusen edit deploy-to-staging        # opens it in $EDITOR
@@ -91,6 +103,7 @@ fusen claim                  # take the oldest ready task
 fusen renew <id>             # a claim lasts 15 minutes
 fusen done <id> "what was done"
 fusen tasks                  # open tasks and who holds them
+fusen tasks --done           # finished ones, latest first
 ```
 
 ```
@@ -146,13 +159,13 @@ optional: plain `- [ ]` lines in a note need nothing else.
 `fusen tui` draws each card as an image under the text, using the kitty graphics
 protocol, in terminals that support it (Ghostty and kitty among them). Elsewhere
 it falls back to cards made of colored cells. `fusen tui --graphics off` forces
-the fallback.
+the fallback. Done tasks are put away here too; press `D` to show or hide them.
 
 ## What is in `.fusen/`
 
 | Path | What it is | Commit it? |
 |---|---|---|
-| `notes/*.md` | The notes | Yes |
+| `notes/*.md` | The notes. A finished task also records when, as `finished:` | Yes |
 | `layout.json` | Where notes sit on the canvas | Your choice |
 | `README.md` | The format, for agents reading the directory | Yes |
 | `.local/` | This machine's change log, bookmarks and lock | No (ignored) |

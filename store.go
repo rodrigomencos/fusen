@@ -68,6 +68,8 @@ type Note struct {
 	Needs   []string  `json:"needs,omitempty"`   // tasks that must be done first
 	For     string    `json:"for,omitempty"`     // the only one who may claim it
 	Created time.Time `json:"created,omitzero"`
+	// When a done or failed task was settled. Older files may not say.
+	Finished time.Time `json:"finished,omitzero"`
 
 	// Filled in by Board for whoever is looking: what the task is right now,
 	// and whether the note is waiting on them.
@@ -358,6 +360,8 @@ func parseNote(id string, data []byte) Note {
 					n.For = v
 				case "created":
 					n.Created, _ = time.Parse(time.RFC3339, v)
+				case "finished":
+					n.Finished, _ = time.Parse(time.RFC3339, v)
 				default:
 					if strings.TrimSpace(line) != "" {
 						n.extra = append(n.extra, line)
@@ -394,6 +398,10 @@ func (n Note) encode() []byte {
 	field("for", n.For)
 	if !n.Created.IsZero() {
 		field("created", n.Created.UTC().Format(time.RFC3339))
+	}
+	// Only a settled task keeps when it was settled, so a task reopened by hand drops it.
+	if n.finished() && !n.Finished.IsZero() {
+		field("finished", n.Finished.UTC().Format(time.RFC3339))
 	}
 	for _, line := range n.extra {
 		b.WriteString(line + "\n")

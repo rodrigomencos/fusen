@@ -27,6 +27,7 @@ button, input, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; border: 1px solid var(--line); background: var(--card); border-radius: 7px; padding: 4px 10px; }
 button:hover { border-color: var(--muted); }
 button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+select { font: inherit; color: inherit; border: 1px solid var(--line); background: var(--card); border-radius: 7px; padding: 3px 6px; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 #bar {
@@ -38,6 +39,52 @@ button.primary { background: var(--accent); border-color: var(--accent); color: 
 #count, #status { color: var(--muted); font-size: 12.5px; white-space: nowrap; }
 #status.off { color: var(--accent); }
 #q { flex: 1; min-width: 60px; max-width: 280px; margin-left: auto; padding: 4px 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--card); }
+.seg { display: inline-flex; flex: none; }
+.seg button { border-radius: 0; white-space: nowrap; }
+.seg button:first-child { border-radius: 7px 0 0 7px; }
+.seg button:last-child { border-radius: 0 7px 7px 0; margin-left: -1px; }
+.seg button[aria-pressed=true] { position: relative; border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--card)); }
+.seg .n { margin-left: 5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.seg button[aria-pressed=true] .n { color: inherit; }
+.bump { animation: bump .9s ease-out; }
+@keyframes bump { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 60%, transparent); } 100% { box-shadow: 0 0 0 10px transparent; } }
+@media (prefers-reduced-motion: reduce) { .bump { animation: none; } }
+@media (max-width: 640px) { #count, #fit { display: none; } }
+
+#panel {
+  position: fixed; z-index: 9; top: 64px; right: 12px; bottom: 12px; width: 360px; display: flex; flex-direction: column;
+  background: var(--bar); backdrop-filter: blur(10px); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow);
+}
+#panel[hidden] { display: none; }
+@media (max-width: 640px) { #panel { left: 12px; width: auto; } }
+.p-head { display: flex; align-items: center; gap: 6px; padding: 9px 9px 8px 12px; border-bottom: 1px solid var(--line); }
+.p-head .grow { flex: 1; }
+.p-head .x { flex: none; padding: 2px 8px; }
+.p-head select { min-width: 0; font-size: 13px; }
+.kinds { display: inline-flex; gap: 2px; }
+.kinds[hidden] { display: none; }
+.kinds button { border-color: transparent; background: none; padding: 2px 8px; font-size: 13px; color: var(--muted); }
+.kinds button[aria-pressed=true] { color: var(--ink); background: color-mix(in srgb, var(--ink) 8%, transparent); font-weight: 600; }
+.p-count { font-size: 13px; color: var(--muted); white-space: nowrap; }
+.p-count:empty { display: none; }
+#rows { flex: 1; overflow: auto; list-style: none; margin: 0; padding: 6px; overscroll-behavior: contain; }
+#rows .none { padding: 18px 10px; color: var(--muted); text-align: center; }
+.row { --c: var(--line); display: grid; grid-template-columns: 4px 1fr auto; column-gap: 10px; align-items: start; padding: 7px 8px; border-radius: 8px; }
+.row:hover, .row.open { background: color-mix(in srgb, var(--ink) 5%, transparent); }
+.row .strip { grid-row: 1 / span 2; align-self: stretch; border-radius: 2px; background: var(--c); }
+.row-main { display: flex; flex-direction: column; gap: 1px; min-width: 0; padding: 0; border: 0; background: none; text-align: left; border-radius: 4px; }
+.row-title { font-weight: 600; overflow-wrap: anywhere; }
+.row-meta { font-size: 12px; color: var(--muted); }
+.row-meta .you { color: var(--accent); font-weight: 600; }
+.row-meta .failed { color: var(--accent); }
+.row-result { font-size: 12.5px; color: var(--muted); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
+.row .reopen { font-size: 12px; padding: 1px 8px; opacity: 0; }
+.row:hover .reopen, .row .reopen:focus-visible, .row.open .reopen { opacity: 1; }
+@media (hover: none) { .row .reopen { opacity: 1; } }
+.row-body { grid-column: 2 / -1; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); font-size: 13px; overflow-wrap: anywhere; }
+.p-foot { display: flex; align-items: center; gap: 7px; padding: 8px 12px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--muted); }
+.p-foot[hidden] { display: none; }
+.p-foot input { margin: 0; accent-color: var(--accent); }
 
 #viewport {
   position: fixed; inset: 0; overflow: hidden; cursor: grab; touch-action: none;
@@ -57,10 +104,11 @@ body.moving #viewport { cursor: grabbing; }
   border: 1px solid color-mix(in srgb, var(--c) 35%, var(--line)); border-top: 4px solid var(--c);
   box-shadow: var(--shadow); transition: opacity .15s, box-shadow .3s;
 }
-.note[data-color=yellow] { --c: var(--yellow); } .note[data-color=pink] { --c: var(--pink); }
-.note[data-color=blue] { --c: var(--blue); } .note[data-color=green] { --c: var(--green); }
-.note[data-color=purple] { --c: var(--purple); } .note[data-color=gray] { --c: var(--gray); }
+[data-color=yellow] { --c: var(--yellow); } [data-color=pink] { --c: var(--pink); }
+[data-color=blue] { --c: var(--blue); } [data-color=green] { --c: var(--green); }
+[data-color=purple] { --c: var(--purple); } [data-color=gray] { --c: var(--gray); }
 .note.dim { opacity: .14; }
+.note.away { display: none; }
 .note.flash { box-shadow: 0 0 0 3px var(--accent), var(--shadow); }
 .head { display: flex; align-items: flex-start; gap: 8px; padding: 9px 8px 4px 13px; cursor: grab; user-select: none; -webkit-user-select: none; }
 .head h2 { flex: 1; margin: 0; font-size: 14.5px; font-weight: 650; letter-spacing: -.01em; overflow-wrap: anywhere; }
@@ -126,11 +174,33 @@ body.moving #viewport { cursor: grabbing; }
   <span id="status"></span>
   <button id="you" hidden title="Show the next note waiting on you"></button>
   <input id="q" type="search" placeholder="Filter notes" aria-label="Filter notes">
+  <span class="seg">
+    <button data-panel="open" aria-pressed="false" aria-controls="panel" title="List what is still open, sorted">List</button>
+    <button data-panel="done" aria-pressed="false" aria-controls="panel" title="Finished tasks, put away from the canvas">Done<span class="n" id="done-n">0</span></button>
+  </span>
   <button id="fit" title="Show every note">Fit</button>
   <button id="new" class="primary">New note</button>
 </header>
 <main id="viewport"><div id="world"></div></main>
-<div id="empty" hidden><p>No notes yet. Double-click anywhere to add one.<br>Agents add them with <code>fusen add</code> or by writing files in <code>.fusen/notes/</code>.</p></div>
+<aside id="panel" hidden aria-label="List of notes">
+  <div class="p-head">
+    <span class="kinds" role="group" aria-label="Show">
+      <button data-kind="all">All</button><button data-kind="tasks">Tasks</button><button data-kind="notes">Notes</button>
+    </span>
+    <span class="p-count"></span>
+    <span class="grow"></span>
+    <select id="sort" aria-label="Sort">
+      <option value="newest">Newest first</option>
+      <option value="oldest">Oldest first</option>
+      <option value="changed">Last changed</option>
+      <option value="title">Title</option>
+    </select>
+    <button class="x" title="Close the list" aria-label="Close the list">✕</button>
+  </div>
+  <ul id="rows"></ul>
+  <label class="p-foot"><input type="checkbox" id="show-done"> Keep done tasks on the canvas too</label>
+</aside>
+<div id="empty" hidden><p></p></div>
 
 <script>
 const $ = s => document.querySelector(s);
@@ -145,6 +215,13 @@ let editor = null;       // {id, el, rev, color} while a note is open; id is nul
 let moving = null;       // id of the note being dragged or resized
 let loaded = false, zTop = 1;
 let view = {x: 0, y: 0, z: 1};
+
+// How the person likes the board shown, kept in this browser only.
+// panel: '' closed, 'open' the list of what is still open, 'done' the finished tasks.
+const prefs = {panel: '', sort: 'newest', kind: 'all', showDone: false};
+try { Object.assign(prefs, JSON.parse(localStorage.getItem('prefs'))); } catch {}
+if (!['', 'open', 'done'].includes(prefs.panel)) prefs.panel = '';
+const savePrefs = () => { try { localStorage.setItem('prefs', JSON.stringify(prefs)); } catch {} };
 
 // ---------- Markdown ----------
 
@@ -258,6 +335,12 @@ function setStatus(text, off) {
   $('#status').classList.toggle('off', !!off);
 }
 
+// A passing message, cleared after a while unless something else has been said since.
+function hint(text) {
+  setStatus(text);
+  setTimeout(() => { if ($('#status').textContent === text) setStatus(''); }, 5000);
+}
+
 let loading = null, loadAgain = false;
 function load() {
   if (loading) { loadAgain = true; return loading; }
@@ -271,10 +354,11 @@ function apply(state) {
   document.title = state.name + ' · fusen';
   $('#name').textContent = state.name;
   $('#name').title = state.root;
-  const seen = new Set();
+  const seen = new Set(), finishing = [];
   for (const n of state.notes) {
     seen.add(n.id);
     const old = notes.get(n.id);
+    if (loaded && old && !isDone(old) && isDone(n)) finishing.push(n);
     notes.set(n.id, n);
     let el = els.get(n.id);
     if (!el) {
@@ -299,13 +383,22 @@ function apply(state) {
     el.remove(); els.delete(id); notes.delete(id); delete layout[id];
     if (editor && editor.id === id) editor = null;
   }
-  $('#count').textContent = notes.size === 1 ? '1 note' : notes.size + ' notes';
-  $('#empty').hidden = notes.size > 0;
   const waiting = [...notes.values()].filter(n => n.needsMe).length;
   $('#you').hidden = !waiting;
   $('#you').textContent = waiting === 1 ? '1 needs you' : waiting + ' need you';
   applyFilter();
+  if (finishing.length && !prefs.showDone) putAway(finishing);
   if (!loaded) { loaded = true; if (!restoreView()) fit(); }
+}
+
+// Tells the person where tasks went when they leave the canvas for the Done shelf.
+function putAway(list) {
+  list = list.filter(n => !n.needsMe); // those stay on the canvas until answered
+  if (!list.length) return;
+  const btn = $('[data-panel=done]');
+  btn.classList.remove('bump'); void btn.offsetWidth; btn.classList.add('bump');
+  const what = list.length === 1 ? `"${list[0].title || list[0].id}" is` : list.length + ' tasks are';
+  hint(`${what} done. Find ${list.length === 1 ? 'it' : 'them'} under Done.`);
 }
 
 // ---------- Notes ----------
@@ -382,11 +475,21 @@ function showNextWaiting() {
   const ids = [...notes.values()].filter(n => n.needsMe).map(n => n.id).sort();
   if (!ids.length) return;
   lastShown = ids[(ids.indexOf(lastShown) + 1) % ids.length];
-  const r = layout[lastShown];
-  view.x = viewport.clientWidth / 2 - (r.x + r.w / 2) * view.z;
-  view.y = viewport.clientHeight / 2 - (r.y + r.h / 2) * view.z;
+  centerOn(lastShown);
+}
+
+// How much of the canvas's right side the list covers.
+const covered = () => !$('#panel').hidden && innerWidth > 640 ? $('#panel').offsetWidth + 24 : 0;
+
+// Brings a note into the middle of the part of the canvas the list does not cover.
+function centerOn(id) {
+  const r = layout[id], el = els.get(id);
+  if (!r || !el) return;
+  view.x = (viewport.clientWidth - covered()) / 2 - (r.x + r.w / 2) * view.z;
+  view.y = (viewport.clientHeight + 52) / 2 - (r.y + r.h / 2) * view.z;
   applyView();
-  flash(els.get(lastShown));
+  el.style.zIndex = ++zTop;
+  flash(el);
 }
 
 function flash(el) {
@@ -462,8 +565,12 @@ async function saveEditor(overwrite) {
       if (saved.conflict) {
         return confirm('This note changed on disk while you were editing it. Replace it with your version?') ? saveEditor(true) : false;
       }
+      const was = notes.get(id);
       notes.set(id, saved);
       closeEditor();
+      setStatus('');
+      if (!isDone(was) && isDone(saved) && !prefs.showDone) putAway([saved]);
+      return true;
     }
     setStatus('');
     return true;
@@ -496,13 +603,128 @@ async function onItem(box) {
   load();
 }
 
+const query = () => $('#q').value.trim().toLowerCase();
+const matches = (n, q) => !q || [n.id, n.title, n.by, n.body, n.wedo, ...n.labels, ...(n.items || []).map(i => i.text)].join('\n').toLowerCase().includes(q);
+
+// A finished task leaves the canvas for the Done shelf, unless the person keeps them out,
+// has it open in the editor, or it is waiting on them.
+const isDone = n => n.state === 'done' || n.state === 'failed';
+const onCanvas = id => prefs.showDone || !isDone(notes.get(id)) || notes.get(id).needsMe || (editor && editor.id === id);
+
 function applyFilter() {
-  const q = $('#q').value.trim().toLowerCase();
+  const q = query();
+  let shown = 0;
   for (const [id, el] of els) {
-    const n = notes.get(id);
-    const text = [n.id, n.title, n.by, n.body, n.wedo, ...n.labels, ...(n.items || []).map(i => i.text)].join('\n').toLowerCase();
-    el.classList.toggle('dim', !!q && !text.includes(q));
+    const away = !onCanvas(id);
+    el.classList.toggle('dim', !matches(notes.get(id), q));
+    el.classList.toggle('away', away);
+    if (!away) shown++;
   }
+  $('#count').textContent = shown === 1 ? '1 note' : shown + ' notes';
+  $('#empty').hidden = shown > 0;
+  $('#empty p').innerHTML = notes.size
+    ? 'Everything here is done. The finished tasks are under <b>Done</b>.'
+    : 'No notes yet. Double-click anywhere to add one.<br>Agents add them with <code>fusen add</code> or by writing files in <code>.fusen/notes/</code>.';
+  renderList();
+}
+
+// ---------- List ----------
+
+const ms = s => s ? Date.parse(s) : 0;
+const createdAt = n => ms(n.created) || ms(n.updated);
+const finishedAt = n => ms(n.finished) || ms(n.updated);
+const expanded = new Set(); // done tasks opened in the list
+
+// The text of a note's newest signed reply, which for a finished task is usually its result.
+const REPLY = /^\*\*[^*\n]+\*\* · \d{4}-\d{2}-\d{2} \d{2}:\d{2}$/gm;
+function lastReply(body) {
+  let end = -1;
+  for (const m of body.matchAll(REPLY)) end = m.index + m[0].length;
+  return end < 0 ? '' : body.slice(end).trim();
+}
+
+function sorted(list, done) {
+  const at = done ? finishedAt : createdAt;
+  const title = n => n.title || n.id;
+  const order = {
+    newest: (a, b) => at(b) - at(a),
+    oldest: (a, b) => at(a) - at(b),
+    changed: (a, b) => ms(b.updated) - ms(a.updated),
+    title: (a, b) => title(a).localeCompare(title(b), undefined, {numeric: true, sensitivity: 'base'}),
+  }[prefs.sort] || (() => 0);
+  return list.sort((a, b) => order(a, b) || a.id.localeCompare(b.id));
+}
+
+function openRow(n) {
+  const when = prefs.sort === 'changed' ? 'changed ' + ago(n.updated) : 'added ' + ago(new Date(createdAt(n)));
+  const bits = [];
+  if (n.needsMe) bits.push('<span class="you">needs you</span>');
+  if (n.state) bits.push(esc({
+    claimed: `claimed by ${n.holder}`,
+    blocked: `blocked${n.holder ? ' · ' + n.holder : ''}`,
+    waiting: `waiting on ${(n.needs || []).join(', ')}`,
+  }[n.state] || n.state));
+  if (n.labels.length) bits.push(esc(n.labels.join(', ')));
+  bits.push(esc(when));
+  return `<li class="row" data-id="${esc(n.id)}" data-color="${esc(n.color || '')}">
+    <span class="strip"></span>
+    <button class="row-main" title="Show it on the canvas"><span class="row-title">${esc(n.title || n.id)}</span><span class="row-meta">${bits.join(' · ')}</span></button>
+  </li>`;
+}
+
+function doneRow(n) {
+  const open = expanded.has(n.id), result = lastReply(n.body);
+  const meta = `<span class="${esc(n.state)}">${esc(n.state)}</span>${n.by ? ' by ' + esc(n.by) : ''} · ${esc(ago(new Date(finishedAt(n))))}`;
+  // Checkboxes here are only for reading: ticking happens on the card.
+  const body = open ? `<div class="row-body md">${(md(n.body) + wedoList(n)).replace(/<input /g, '<input disabled ') || '<p class="none">Empty note</p>'}</div>` : '';
+  return `<li class="row${open ? ' open' : ''}" data-id="${esc(n.id)}" data-color="${esc(n.color || '')}">
+    <span class="strip"></span>
+    <button class="row-main" aria-expanded="${open}" title="${open ? 'Hide' : 'Show'} the whole note"><span class="row-title">${esc(n.title || n.id)}</span><span class="row-meta">${meta}</span>${result && !open ? `<span class="row-result">${inline(result.split('\n').join(' '))}</span>` : ''}</button>
+    <button class="reopen" title="Put it back on the canvas as a ready task">Reopen</button>${body}
+  </li>`;
+}
+
+let listHTML = '';
+function renderList() {
+  const all = [...notes.values()], done = all.filter(isDone), panel = prefs.panel;
+  $('#done-n').textContent = done.length;
+  for (const b of document.querySelectorAll('[data-panel]')) b.setAttribute('aria-pressed', b.dataset.panel === panel);
+  $('#panel').hidden = !panel;
+  if (!panel) return;
+  const q = query();
+  let list = panel === 'done' ? done : all.filter(n => !isDone(n));
+  if (panel === 'open' && prefs.kind !== 'all') list = list.filter(n => !!n.state === (prefs.kind === 'tasks'));
+  list = sorted(list.filter(n => matches(n, q)), panel === 'done');
+
+  $('.kinds').hidden = panel !== 'open';
+  for (const b of document.querySelectorAll('[data-kind]')) b.setAttribute('aria-pressed', b.dataset.kind === prefs.kind);
+  $('.p-count').textContent = panel === 'done' ? (done.length === 1 ? '1 finished task' : done.length + ' finished tasks') : '';
+  $('#sort').value = prefs.sort;
+  $('#show-done').checked = prefs.showDone;
+  $('.p-foot').hidden = panel !== 'done';
+
+  const none = q ? 'Nothing here matches the filter.'
+    : panel === 'done' ? 'No finished tasks yet. A task lands here when it is marked done or failed.'
+    : prefs.kind === 'tasks' ? 'No open tasks.' : 'Nothing open.';
+  const html = list.map(panel === 'done' ? doneRow : openRow).join('') || `<li class="none">${none}</li>`;
+  if (html !== listHTML) $('#rows').innerHTML = listHTML = html;
+}
+
+function setPanel(panel) {
+  prefs.panel = panel;
+  savePrefs();
+  renderList();
+}
+
+async function reopen(id) {
+  try {
+    // Only the task state changes, on the note as it is on disk, so nothing anyone wrote is lost.
+    await api('PUT', notePath(id), {task: 'ready'});
+    expanded.delete(id);
+    await load();
+    if (!prefs.showDone) hint(`"${notes.get(id)?.title || id}" is back on the canvas.`);
+    centerOn(id);
+  } catch (err) { report(err); }
 }
 
 // ---------- Canvas ----------
@@ -525,7 +747,8 @@ function restoreView() {
 }
 
 function fit() {
-  const rs = Object.values(layout), vw = viewport.clientWidth, vh = viewport.clientHeight, top = 64;
+  const rs = Object.keys(layout).filter(id => els.has(id) && onCanvas(id)).map(id => layout[id]);
+  const vw = viewport.clientWidth - covered(), vh = viewport.clientHeight, top = 64;
   if (!rs.length) { view = {x: 0, y: 0, z: 1}; return applyView(); }
   const x0 = Math.min(...rs.map(r => r.x)), y0 = Math.min(...rs.map(r => r.y));
   const x1 = Math.max(...rs.map(r => r.x + r.w)), y1 = Math.max(...rs.map(r => r.y + r.h));
@@ -644,12 +867,37 @@ world.addEventListener('change', e => {
 });
 
 addEventListener('keydown', e => {
+  if (!editor && prefs.panel && e.key === 'Escape' && !e.target.closest('input, textarea, select')) return setPanel('');
   if (!editor || e.target.closest('.reply')) return;
   if (e.key === 'Escape') closeEditor();
   else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) saveEditor();
 });
 
 $('#q').addEventListener('input', applyFilter);
+for (const b of document.querySelectorAll('[data-panel]')) {
+  b.addEventListener('click', () => setPanel(prefs.panel === b.dataset.panel ? '' : b.dataset.panel));
+}
+$('#panel .x').addEventListener('click', () => setPanel(''));
+$('.kinds').addEventListener('click', e => {
+  const b = e.target.closest('[data-kind]');
+  if (b) { prefs.kind = b.dataset.kind; savePrefs(); renderList(); }
+});
+$('#sort').addEventListener('change', e => { prefs.sort = e.target.value; savePrefs(); renderList(); });
+$('#show-done').addEventListener('change', e => { prefs.showDone = e.target.checked; savePrefs(); applyFilter(); });
+$('#rows').addEventListener('click', e => {
+  const row = e.target.closest('.row');
+  if (!row) return;
+  const id = row.dataset.id;
+  if (e.target.closest('.reopen')) return reopen(id);
+  if (!e.target.closest('.row-main')) return;
+  if (prefs.panel !== 'done') {
+    if (innerWidth <= 640) setPanel(''); // on a phone the list covers the canvas
+    return centerOn(id);
+  }
+  if (!expanded.delete(id)) expanded.add(id);
+  renderList();
+  if (prefs.showDone) centerOn(id);
+});
 $('#fit').addEventListener('click', fit);
 $('#you').addEventListener('click', showNextWaiting);
 $('#new').addEventListener('click', () => {

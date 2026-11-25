@@ -173,6 +173,22 @@ func renew(n *Note, who string, lease time.Duration) error {
 // settle moves a task to a state nobody holds: ready, done or failed.
 func settle(n *Note, who, state string) {
 	n.Task, n.Holder, n.Until, n.Blocked, n.By = state, "", time.Time{}, "", who
+	n.Finished = time.Time{}
+	if n.finished() {
+		n.Finished = time.Now()
+	}
+}
+
+// finished reports whether a task is settled for good, done or failed, and so
+// sits on the board's Done shelf instead of the canvas.
+func (n Note) finished() bool { return n.Task == "done" || n.Task == "failed" }
+
+// finishedAt is when a task was settled, or when its file was last written if it does not say.
+func (n Note) finishedAt() time.Time {
+	if n.Finished.IsZero() {
+		return n.Updated
+	}
+	return n.Finished
 }
 
 // block parks a task on a question. The holder keeps it, with no deadline,

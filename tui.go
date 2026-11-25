@@ -93,6 +93,7 @@ type tui struct {
 	sel    string
 	mode   mode
 	filter string
+	done   bool   // done and failed tasks stay on the canvas instead of being put away
 	typed  string // the reply being typed
 	drag   *drag
 	click  struct {
@@ -156,10 +157,33 @@ func (m *tui) reload(flash bool) error {
 		}
 	}
 	m.notes, m.layout, m.sig = next, layout, sig
-	if _, ok := next[m.sel]; !ok {
+	if !m.shown(m.sel) {
 		m.sel = ""
 	}
 	return nil
+}
+
+// shown reports whether a note is on the canvas. A finished task is put away
+// unless done ones are shown, it is waiting on the person, or it is open in the editor.
+func (m *tui) shown(id string) bool {
+	n, ok := m.notes[id]
+	return ok && (m.done || !n.finished() || n.NeedsMe || (m.ed != nil && m.ed.id == id))
+}
+
+// onCanvas is the notes on the canvas, back to front.
+func (m *tui) onCanvas() []string {
+	return slices.DeleteFunc(slices.Clone(m.order), func(id string) bool { return !m.shown(id) })
+}
+
+// finishedCount is how many tasks are done or failed.
+func (m *tui) finishedCount() int {
+	k := 0
+	for _, n := range m.notes {
+		if n.finished() {
+			k++
+		}
+	}
+	return k
 }
 
 // signature covers the notes, the layout and the wedo lists the notes show.
@@ -232,10 +256,11 @@ func (m *tui) matches(n Note) bool {
 
 // hit finds the topmost note under a screen cell.
 func (m *tui) hit(p point) (string, cellRect) {
-	for i := len(m.order) - 1; i >= 0; i-- {
-		r := m.rect(m.order[i])
+	ids := m.onCanvas()
+	for i := len(ids) - 1; i >= 0; i-- {
+		r := m.rect(ids[i])
 		if p.x >= r.x && p.x < r.x+r.w && p.y >= r.y && p.y < r.y+r.h {
-			return m.order[i], r
+			return ids[i], r
 		}
 	}
 	return "", cellRect{}
@@ -261,11 +286,12 @@ func (m *tui) boxAt(id string, r cellRect, p point) *line {
 func (m *tui) fit() {
 	m.cam = point{}
 	left, top := math.MaxInt, math.MaxInt
-	for id := range m.notes {
+	ids := m.onCanvas()
+	for _, id := range ids {
 		r := m.rect(id)
 		left, top = min(left, r.x), min(top, r.y)
 	}
-	if len(m.notes) > 0 {
+	if len(ids) > 0 {
 		m.cam = point{left - 2, top - 1}
 	}
 }
@@ -332,10 +358,11 @@ func (m *tui) syncImages() {
 	if m.gfx == nil || m.away || m.w == 0 {
 		return
 	}
-	cards := make([]placement, 0, len(m.order))
-	for i, id := range m.order {
+	ids := m.onCanvas()
+	cards := make([]placement, 0, len(ids))
+	for i, id := range ids {
 		r := m.rect(id)
-		cards = append(cards, placement{id, cardKey{r.w, r.h, m.notes[id].Color, m.state(id)}, r.x, r.y, i - len(m.order)})
+		cards = append(cards, placement{id, cardKey{r.w, r.h, m.notes[id].Color, m.state(id)}, r.x, r.y, i - len(ids)})
 	}
 	w, h := m.canvasSize()
 	m.gfx.sync(cards, w, h)
@@ -439,6 +466,16 @@ func (m *tui) key(msg tea.KeyMsg) tea.Cmd {
 		}
 	case "i":
 		m.nextWaiting()
+	case "D":
+		m.done = !m.done
+		if !m.shown(m.sel) {
+			m.sel = ""
+		}
+		if m.done {
+			m.say("Showing done tasks on the canvas. D puts them away.")
+		} else {
+			m.say(fmt.Sprintf("Put away %d done tasks. D shows them.", m.finishedCount()))
+		}
 	case "n":
 		w, h := m.canvasSize()
 		return m.openEditor(Note{}, point{m.cam.x + w/2 - 19, m.cam.y + h/2 - 6})
@@ -467,8 +504,11 @@ func (m *tui) key(msg tea.KeyMsg) tea.Cmd {
 			settle(n, author(""), next)
 			return nil
 		})
-		m.report(err)
 		m.report(m.reload(false))
+		if next == "done" && !m.done && err == nil {
+			m.say(fmt.Sprintf("%q is done and put away. D shows done tasks.", cmp.Or(n.Title, n.ID)))
+		}
+		m.report(err)
 	case "c":
 		n.Color = noteColors[(slices.Index(noteColors, n.Color)+1)%len(noteColors)]
 		m.write(n)
@@ -507,10 +547,10 @@ func (m *tui) nextWaiting() {
 
 // cycle selects the next note in reading order.
 func (m *tui) cycle(step int) {
-	if len(m.order) == 0 {
+	ids := m.onCanvas()
+	if len(ids) == 0 {
 		return
 	}
-	ids := slices.Clone(m.order)
 	sort.Slice(ids, func(i, j int) bool {
 		a, b := m.layout[ids[i]], m.layout[ids[j]]
 		if a.Y != b.Y {
@@ -737,6 +777,9 @@ func (m *tui) keyEdit(msg tea.KeyMsg) tea.Cmd {
 		return m.quit()
 	case k == "esc":
 		m.ed, m.mode = nil, modeCanvas
+		if !m.shown(m.sel) {
+			m.sel = ""
+		}
 		return nil
 	case k == "ctrl+s":
 		m.saveEditor()
@@ -808,11 +851,15 @@ func (m *tui) View() string {
 			}
 		}
 	}
-	for _, id := range m.order {
+	ids := m.onCanvas()
+	for _, id := range ids {
 		drawCard(g, m.notes[id], m.rect(id), m.state(id), m.th, m.gfx != nil)
 	}
-	if len(m.notes) == 0 {
+	if len(ids) == 0 {
 		hint := "No notes yet. Press n to write one."
+		if len(m.notes) > 0 {
+			hint = "Everything here is done. Press D to see the done tasks."
+		}
 		g.text((w-len(hint))/2, h/2, w, hint, attr{fg: m.th.muted})
 	}
 	view := g.String()
@@ -871,8 +918,9 @@ func (m *tui) drawer(w, h int) string {
 }
 
 func (m *tui) statusBar() string {
-	left := fmt.Sprintf(" %s  %d notes", filepath.Base(m.store.root()), len(m.notes))
-	if len(m.notes) == 1 {
+	shown := len(m.onCanvas())
+	left := fmt.Sprintf(" %s  %d notes", filepath.Base(m.store.root()), shown)
+	if shown == 1 {
 		left = strings.TrimSuffix(left, "s")
 	}
 	if m.filter != "" && m.mode != modeFilter {
@@ -887,7 +935,10 @@ func (m *tui) statusBar() string {
 	if waiting > 0 {
 		left += fmt.Sprintf("  %d waiting on you (i)", waiting)
 	}
-	right, loud := "n new  tab select  arrows pan  / filter  f fit  q quit", false
+	if k := m.finishedCount(); k > 0 && !m.done {
+		left += fmt.Sprintf("  %d done put away (D)", k)
+	}
+	right, loud := "n new  tab select  arrows pan  / filter  f fit  D done  q quit", false
 	switch {
 	case m.mode == modeConfirm:
 		n := m.notes[m.sel]

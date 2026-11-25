@@ -51,7 +51,7 @@ func answer(n *Note, who, text string) {
 }
 
 func cmdTasks(a args) error {
-	if err := a.allow("all", "json"); err != nil {
+	if err := a.allow("all", "done", "json"); err != nil {
 		return err
 	}
 	s, err := openStore()
@@ -63,9 +63,19 @@ func cmdTasks(a args) error {
 		return err
 	}
 	tasks := slices.DeleteFunc(slices.Clone(notes), func(n Note) bool {
-		return n.State == "" || (!a.has("all") && (n.State == "done" || n.State == "failed"))
+		switch {
+		case a.has("done"):
+			return !n.finished()
+		case a.has("all"):
+			return n.State == ""
+		}
+		return n.State == "" || n.finished()
 	})
+	// Open tasks are listed in the order claim takes them; finished ones latest first.
 	slices.SortStableFunc(tasks, func(x, y Note) int { return x.age().Compare(y.age()) })
+	if a.has("done") {
+		slices.SortStableFunc(tasks, func(x, y Note) int { return y.finishedAt().Compare(x.finishedAt()) })
+	}
 	if a.has("json") {
 		return json.NewEncoder(os.Stdout).Encode(tasks)
 	}
@@ -73,8 +83,11 @@ func cmdTasks(a args) error {
 	fmt.Fprintln(w, "ID\tSTATE\tWHO\tTITLE")
 	for _, n := range tasks {
 		who := n.For
-		if n.State == "claimed" || n.State == "blocked" {
+		switch {
+		case n.State == "claimed" || n.State == "blocked":
 			who = n.Holder
+		case n.finished():
+			who = n.By // whoever settled it
 		}
 		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", n.ID, stateText(n), who, n.Title)
 	}
@@ -90,8 +103,32 @@ func stateText(n Note) string {
 		return "blocked: " + cmp.Or(n.Blocked, "needs_input")
 	case "waiting":
 		return "waiting on " + strings.Join(n.Needs, ", ")
+	case "done", "failed":
+		return n.State + " " + ago(n.finishedAt())
 	}
 	return n.State
+}
+
+// sortNotes orders a listing: newest or oldest by when notes were made,
+// changed by when they were last written, or title.
+func sortNotes(notes []Note, by string) error {
+	var order func(a, b Note) int
+	switch by {
+	case "newest":
+		order = func(a, b Note) int { return b.age().Compare(a.age()) }
+	case "oldest":
+		order = func(a, b Note) int { return a.age().Compare(b.age()) }
+	case "changed":
+		order = func(a, b Note) int { return b.Updated.Compare(a.Updated) }
+	case "title":
+		order = func(a, b Note) int {
+			return cmp.Compare(strings.ToLower(cmp.Or(a.Title, a.ID)), strings.ToLower(cmp.Or(b.Title, b.ID)))
+		}
+	default:
+		return fmt.Errorf("--sort wants newest, oldest, changed or title")
+	}
+	slices.SortStableFunc(notes, order)
+	return nil
 }
 
 func cmdClaim(a args) error {
